@@ -26,7 +26,6 @@
 #include <QAbstractTableModel>
 #include <QVector>
 
-#include <projectM.hpp>
 #include <QStringList>
 #include <QtDebug>
 

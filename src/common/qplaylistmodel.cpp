@@ -19,7 +19,7 @@
  *
  */
 
-#include "projectM.h"
+#include <libprojectM/projectM.h>
 
 #include <QIcon>
 #include <QXmlStreamReader>

@@ -1,13 +1,4 @@
-if(NOT ENABLE_QT)
-    return()
-endif()
-
-# Automatically create .moc files and run the UIC and resource compilers
-set(CMAKE_AUTOMOC ON)
-set(CMAKE_AUTOUIC ON)
-set(CMAKE_AUTORCC ON)
-
-add_library(projectM-qt STATIC
+add_library(projectM-Qt-Common STATIC
         application.qrc
         configfile.cpp
         configfile.hpp
@@ -34,19 +25,19 @@ add_library(projectM-qt STATIC
         qxmlplaylisthandler.hpp
         )
 
-set_target_properties(projectM-qt PROPERTIES
+set_target_properties(projectM-Qt-Common PROPERTIES
         C_VISIBILITY_PRESET default
         CXX_VISIBILITY_PRESET default
         VISIBILITY_INLINES_HIDDEN OFF
         )
 
-target_include_directories(projectM-qt
+target_include_directories(projectM-Qt-Common
         PUBLIC
         "${CMAKE_CURRENT_SOURCE_DIR}"
         )
 
-target_link_libraries(projectM-qt
+target_link_libraries(projectM-Qt-Common
         PUBLIC
-        projectM::libprojectM
+        libprojectM::$<IF:$<BOOL:ENABLE_SHARED_LINKING>,shared,static>
         ${QT_LINK_TARGETS}
         )

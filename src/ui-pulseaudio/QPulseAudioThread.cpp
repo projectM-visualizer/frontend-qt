@@ -1,4 +1,3 @@
-#include "projectM.hpp"
 #include "QPulseAudioThread.hpp"
 #include <QtDebug>
 #include <QString>

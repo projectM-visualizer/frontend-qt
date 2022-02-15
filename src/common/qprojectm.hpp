@@ -22,7 +22,7 @@
 #ifndef QPROJECTM_HPP
 #define QPROJECTM_HPP
 
-#include "projectM.h"
+#include <libprojectM/projectM.h>
 
 #include <QObject>
 #include <QString>
@@ -34,7 +34,7 @@ Q_OBJECT
 
 public:
     explicit QProjectM(const QString& config_file)
-        : _projectM(projectm_create(config_file.toLocal8Bit().data(), projectM::FLAG_DISABLE_PLAYLIST_LOAD))
+        : _projectM(projectm_create(config_file.toLocal8Bit().data(), projectm_flags::PROJECTM_FLAG_DISABLE_PLAYLIST_LOAD))
     {
         projectm_set_preset_switched_event_callback(_projectM, &QProjectM::presetSwitchedEvent, this);
         projectm_set_preset_switch_failed_event_callback(_projectM, &QProjectM::presetSwitchFailedEvent, this);

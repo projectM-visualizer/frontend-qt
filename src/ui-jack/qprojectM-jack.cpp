@@ -19,24 +19,19 @@
  *
  */
 
-#include <fcntl.h>
-#include <stdlib.h>
-#include <math.h>
-#include <projectM.h>
 #include <qprojectm_mainwindow.hpp>
-#include <QApplication>
 
-#include "ConfigFile.h"
-#include <string>
-#include <iostream>
-#include <stdio.h>
-#include <unistd.h>
-#include <sys/stat.h> // for mkdir
+#include <libprojectM/projectM.h>
+
 #include <jack/jack.h>
 
-#ifdef HTTP_REMOTE_CONTROL
-#include "HTTPRemoteControl.h"
-#endif
+#include <QApplication>
+
+#include <cstdlib>
+#include <string>
+#include <iostream>
+#include <cstdio>
+#include <sys/stat.h> // for mkdir
 
 #define QPROJECTM_JACK_CONFIG_FILE "/config.inp"
 

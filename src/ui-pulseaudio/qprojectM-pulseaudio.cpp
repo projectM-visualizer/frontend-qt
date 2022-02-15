@@ -41,43 +41,24 @@
   USA.
 ***/
 
-#include <fcntl.h>
-#include <stdlib.h>
-#include <math.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <projectM.h>
-#include <qprojectm_mainwindow.hpp>
-#include <QApplication>
-#include <QtDebug>
-
-#include "ConfigFile.h"
-#include <string>
-#include <iostream>
-#include <stdio.h>
-#include <unistd.h>
-#include <QAction>
-#include <QThread>
-#include <QTimer>
-#define CONFIG_FILE "/share/projectM/config.inp"
-
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
-#include <sys/stat.h>
-#include <sys/types.h>
-
-#include <unistd.h>
-#include <string.h>
-#include <errno.h>
-#include <sys/stat.h>
-#include <TestRunner.hpp>
-
-//#include <pulsecore/gccmacro.h>
-
 #include "QPulseAudioThread.hpp"
 #include "QPulseAudioDeviceChooser.hpp"
+
+#include <qprojectm_mainwindow.hpp>
+
+#include <libprojectM/projectM.h>
+
+#include <QApplication>
+#include <QAction>
+#include <QTimer>
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <string>
+#include <sys/stat.h>
+
+#define CONFIG_FILE "/share/projectM/config.inp"
 
 QString read_config();
 
