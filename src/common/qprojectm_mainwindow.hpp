@@ -23,6 +23,8 @@
 #define QPROJECTM_MAINWINDOW_H
 #define CONFIG_FILE "/share/projectM/config.inp"
 
+#include <libprojectM/projectM.h>
+
 #include <QMainWindow>
 #include <QCloseEvent>
 #include <cassert>
@@ -31,9 +33,8 @@
 #include <QtDebug>
 #include <QMutex>
 
-#include "projectM.hpp"
-
 #include <QModelIndexList>
+
 class QHeaderView;
 class QAction;
 class QMenu;
@@ -118,7 +119,7 @@ protected:
 
 private slots:
 void dockLocationChanged(Qt::DockWidgetArea area);
-void presetRatingChanged(unsigned int, int, PresetRatingType);
+void presetRatingChanged(unsigned int, int, projectm_preset_rating_type);
 void handleFailedPresetSwitch(const bool isHardCut, const unsigned int index,
 		const QString & message);
 

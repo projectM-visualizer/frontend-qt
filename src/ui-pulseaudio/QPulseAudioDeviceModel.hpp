@@ -1,5 +1,5 @@
 /**
- * projectM-qt -- Qt4 based projectM GUI 
+ * projectM -- Milkdrop-esque visualisation SDK
  * Copyright (C)2003-2004 projectM Team
  *
  * This library is free software; you can redistribute it and/or
@@ -19,36 +19,33 @@
  *
  */
 
-#ifndef QPRESET_FILEDIALOG_H
-#define QPRESET_FILEDIALOG_H
 
+#ifndef QPULSEAUDIODEVICEMODEL_HPP
+#define QPULSEAUDIODEVICEMODEL_HPP
 
-#define CONFIG_FILE "/share/projectM/config.inp"
-
-#include <QMainWindow>
-#include <QCloseEvent>
 #include <cassert>
-#include <projectM.hpp>
 
-#include <iostream>
-#include <QFileDialog>
+#include <QAbstractListModel>
+#include <QHash>
 
- class QPresetFileDialog : public QFileDialog
+ class QPulseAudioDeviceModel : public QAbstractListModel
  {
      Q_OBJECT        // must include this if you use Qt signals/slots
 
+	 public slots:
+		 void updateItemHighlights();
+
  public:
-     QPresetFileDialog(QWidget * parent = 0): 
-		QFileDialog(parent, "Add preset files", QString(), "Presets (*.prjm *.milk *.so)" ) {
+     QPulseAudioDeviceModel(const QHash<int, QString> & devices, const QHash<int,QString>::const_iterator & devicePosition , QObject * parent);
+     ~QPulseAudioDeviceModel() { }
+     
+     
 
-		this->setOption(QFileDialog::DontUseNativeDialog);
+QVariant data ( const QModelIndex & index, int role) const;
+int rowCount ( const QModelIndex & parent = QModelIndex()) const ;
 
-		this->setFileMode(QFileDialog::ExistingFiles);
-	}
-	
-     ~QPresetFileDialog() { }
  private:
-	
-	
+	const QHash<int, QString> & _devices;
+ 	const QHash<int, QString>::const_iterator & _devicePosition;
 };
 #endif

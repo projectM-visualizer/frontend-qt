@@ -19,24 +19,25 @@
  *
  */
 
-#include <QtWidgets>
-#include "qprojectm_mainwindow.hpp"
-#include "qpresetfiledialog.hpp"
+#include "configfile.hpp"
+#include "nullable.hpp"
 #include "qplaylistfiledialog.hpp"
+#include "qplaylistmodel.hpp"
+#include "qpreseteditordialog.hpp"
+#include "qpresetfiledialog.hpp"
+#include "qpresettextedit.hpp"
+#include "qprojectm_mainwindow.hpp"
+#include "qprojectmconfigdialog.hpp"
+#include "qprojectmwidget.hpp"
+#include "qxmlplaylisthandler.hpp"
+#include "ui_qpreseteditordialog.h"
+#include "ui_qprojectm_mainwindow.h"
+
+#include <QtWidgets>
 #include <QTextStream>
 #include <QCloseEvent>
 #include <QFileDialog>
 
-#include "qplaylistmodel.hpp"
-#include "qpresettextedit.hpp"
-#include "ui_qprojectm_mainwindow.h"
-#include "qprojectmconfigdialog.hpp"
-#include "qpreseteditordialog.hpp"
-#include "ui_qpreseteditordialog.h"
-#include "configfile.hpp"
-#include "qxmlplaylisthandler.hpp"
-#include "nullable.hpp"
-#include "qprojectmwidget.hpp"
 
 class PlaylistWriteFunctor {
 	public:
@@ -1290,7 +1291,7 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 }
 
 
-void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating, PresetRatingType ratingType)
+void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating, projectm_preset_rating_type ratingType)
 {
 	Q_UNUSED(ratingType);
 
