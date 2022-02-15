@@ -232,7 +232,7 @@ projectm* QProjectM_MainWindow::GetProjectM()
 
 void QProjectM_MainWindow::addPCM(float * buffer, unsigned int bufferSize)
 {
-    projectm_pcm_add_float_2ch_data(qprojectM()->instance(), buffer, bufferSize);
+    projectm_pcm_add_float(qprojectM()->instance(), buffer, bufferSize / 2, PROJECTM_STEREO);
 }
 
 void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut, unsigned int index )
@@ -286,7 +286,7 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 		if ((playlistFile = qSettings.value("PlaylistFile", QString()).toString()) == QString())
         {
 		    auto projectMSettings = projectm_get_settings(qprojectM()->instance());
-		    url = QString(projectMSettings->preset_url);
+		    url = QString(projectMSettings->preset_path);
 		    projectm_free_settings(projectMSettings);
         }
 		else
