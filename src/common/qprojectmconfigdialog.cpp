@@ -126,14 +126,14 @@ void QProjectMConfigDialog::saveConfig() {
     // Will only keep data_dir.
     auto settings = projectm_get_settings(_qprojectMWidget->qprojectM()->instance());
 
-    projectm_free_string(settings->preset_path);
+    projectm_free_string(settings->preset_url);
 
 	settings->mesh_x = _ui.meshSizeWidthSpinBox->value();
 	settings->mesh_y = _ui.meshSizeHeightSpinBox->value();
 	settings->window_height = _ui.windowHeightSpinBox->value();
 	settings->window_width = _ui.windowWidthSpinBox->value();
-	settings->preset_path = projectm_alloc_string(_ui.startupPlaylistDirectoryLineEdit->text().length() + 1);
-	strncpy(settings->preset_path, _ui.startupPlaylistDirectoryLineEdit->text().toLocal8Bit().data(), _ui.startupPlaylistDirectoryLineEdit->text().length());
+	settings->preset_url = projectm_alloc_string(_ui.startupPlaylistDirectoryLineEdit->text().length() + 1);
+	strncpy(settings->preset_url, _ui.startupPlaylistDirectoryLineEdit->text().toLocal8Bit().data(), _ui.startupPlaylistDirectoryLineEdit->text().length());
 	settings->texture_size = _ui.textureSizeComboBox->itemData(_ui.textureSizeComboBox->currentIndex()).toInt();
 	settings->soft_cut_duration = _ui.smoothPresetDurationSpinBox->value();
 	settings->preset_duration = _ui.presetDurationSpinBox->value();
@@ -175,7 +175,7 @@ void QProjectMConfigDialog::loadConfig() {
 	_ui.meshSizeWidthSpinBox->setValue(settings->mesh_x);
 	_ui.meshSizeHeightSpinBox->setValue(settings->mesh_y);
 
-	_ui.startupPlaylistDirectoryLineEdit->setText(settings->preset_path);
+	_ui.startupPlaylistDirectoryLineEdit->setText(settings->preset_url);
 	_ui.useAspectCorrectionCheckBox->setCheckState(settings->aspect_correction ? Qt::Checked : Qt::Unchecked);
 	_ui.maxFPSSpinBox->setValue(settings->fps);
 	_ui.beatSensitivitySpinBox->setValue(settings->beat_sensitivity);

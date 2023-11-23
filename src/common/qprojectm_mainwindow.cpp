@@ -286,7 +286,7 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 		if ((playlistFile = qSettings.value("PlaylistFile", QString()).toString()) == QString())
         {
 		    auto projectMSettings = projectm_get_settings(qprojectM()->instance());
-		    url = QString(projectMSettings->preset_path);
+		    url = QString(projectMSettings->preset_url);
 		    projectm_free_settings(projectMSettings);
         }
 		else
