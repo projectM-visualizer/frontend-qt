@@ -38,6 +38,6 @@ target_include_directories(projectM-Qt-Common
 
 target_link_libraries(projectM-Qt-Common
         PUBLIC
-        libprojectM::$<IF:$<BOOL:ENABLE_SHARED_LINKING>,shared,static>
+        libprojectM::projectM
         ${QT_LINK_TARGETS}
         )

@@ -23,7 +23,7 @@
 #define QPROJECTM_MAINWINDOW_H
 #define CONFIG_FILE "/share/projectM/config.inp"
 
-#include <libprojectM/projectM.h>
+#include <projectM-4/projectM.h>
 
 #include <QMainWindow>
 #include <QCloseEvent>

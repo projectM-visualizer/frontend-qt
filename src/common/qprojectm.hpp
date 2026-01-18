@@ -22,7 +22,7 @@
 #ifndef QPROJECTM_HPP
 #define QPROJECTM_HPP
 
-#include <libprojectM/projectM.h>
+#include <projectM-4/projectM.h>
 
 #include <QObject>
 #include <QString>
