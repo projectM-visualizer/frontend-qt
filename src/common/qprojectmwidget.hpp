@@ -24,6 +24,7 @@
 
 #include <iostream>
 #include "qprojectm.hpp"
+#include <projectM-4/render_opengl.h>
 #include <QOpenGLWidget>
 #include <QMutex>
 #include <QtDebug>
@@ -196,68 +197,9 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void keyReleaseEvent ( QKeyEvent * e )
 		{
-
-			projectMKeycode pkey;
-			bool ignore = false;
-			switch ( e->key() )
-			{
-				case Qt::Key_F4:
-					pkey =  PROJECTM_K_F4;
-					break;
-				case Qt::Key_F3:
-					pkey =  PROJECTM_K_F3;
-					break;
-				case Qt::Key_F2:
-					pkey =  PROJECTM_K_F2;
-					break;
-				case Qt::Key_F1:
-					pkey =  PROJECTM_K_F1;
-					break;
-				case Qt::Key_R:
-					if (e->modifiers() & Qt::ShiftModifier)
-						pkey =  PROJECTM_K_R;
-					else
-						pkey =  PROJECTM_K_r;
-					break;				
-				case Qt::Key_L:
-					pkey =  PROJECTM_K_l;
-					ignore = true;
-					break;
-				case Qt::Key_N:	
-					if (e->modifiers() & Qt::ShiftModifier)
-						pkey =  PROJECTM_K_N;
-					else
-						pkey =  PROJECTM_K_n;
-					break;
-				case Qt::Key_P:
-					if (e->modifiers() & Qt::ShiftModifier)
-						pkey =  PROJECTM_K_P;
-					else
-						pkey =  PROJECTM_K_p;
-					break;
-				case Qt::Key_F5:
-					pkey =  PROJECTM_K_F5;
-					break;
-				case Qt::Key_Plus:
-					pkey =  PROJECTM_K_PLUS;
-					break;
-				case Qt::Key_Minus:
-					pkey =  PROJECTM_K_MINUS;
-					break;
-				case Qt::Key_Equal:
-					pkey = PROJECTM_K_EQUALS;
-					break;
-				default:
-					e->ignore();
-					return;
-			}
-			projectMModifier modifier = PROJECTM_KMOD_NONE;
-
-            projectm_key_handler(m_projectM->instance(), PROJECTM_KEYDOWN, pkey, modifier);
-			if ( ignore )
-				e->ignore();
-
-
+			// TODO: projectM4 removed the key_handler API. Need to implement
+			// keyboard shortcuts using direct preset/settings API calls.
+			e->ignore();
 		}
 
 		void initializeGL() override
@@ -271,7 +213,7 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void paintGL() override
 		{
-            projectm_render_frame(m_projectM->instance());
+            projectm_opengl_render_frame(m_projectM->instance());
 		}
 
 	private:
