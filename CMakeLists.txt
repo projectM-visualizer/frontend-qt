@@ -74,7 +74,7 @@ else()
     endif()
 endif()
 
-find_package(libprojectM REQUIRED)
+find_package(projectM4 REQUIRED)
 find_package(Pulseaudio REQUIRED)
 
 if(ENABLE_JACK)
