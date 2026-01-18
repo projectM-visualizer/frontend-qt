@@ -9,5 +9,6 @@ the SDL-based application:
 - Changing and remembering preset ratings per playlist
 - A graphical dialog to change the projectM settings
 
-Currently, the application only runs on Linux-based desktops using either PulseAudio or JACK as audio backends. This
-will change in the future to bring the application to other Qt-supported operating systems as well.
+Currently, the application runs on Linux-based desktops using PulseAudio, PipeWire, or JACK as audio backends.
+
+**PipeWire Support**: The new PipeWire backend provides native integration with modern Linux audio systems. PipeWire is the recommended audio backend for most users running recent Linux distributions.

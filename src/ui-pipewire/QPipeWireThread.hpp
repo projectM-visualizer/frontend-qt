@@ -1,0 +1,75 @@
+/**
+ * projectM -- Milkdrop-esque visualisation SDK
+ * Copyright (C)2003-2004 projectM Team
+ *
+ * This library is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public
+ * License as published by the Free Software Foundation; either
+ * version 2.1 of the License, or (at your option) any later version.
+ *
+ * This library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public
+ * License along with this library; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ * See 'LICENSE.txt' included within this release
+ *
+ */
+
+#ifndef QPIPEWIRE_AUDIO_THREAD
+#define QPIPEWIRE_AUDIO_THREAD
+
+#include <QObject>
+#include <QTimer>
+#include <QThread>
+#include <QString>
+#include <QMutex>
+#include <QtDebug>
+
+#include <pipewire/pipewire.h>
+#include <spa/param/audio/format-utils.h>
+
+#include "qprojectm_mainwindow.hpp"
+
+class QPipeWireThread : public QThread
+{
+    Q_OBJECT
+
+public:
+    QPipeWireThread() {}
+    QPipeWireThread(int _argc, char **_argv, QProjectM_MainWindow * qprojectM_MainWindow);
+    virtual ~QPipeWireThread();
+    void run() override;
+
+    QMutex * mutex();
+    void writeSettings();
+
+public slots:
+    void cleanup();
+
+signals:
+    void threadCleanedUp();
+
+private:
+    struct AudioData {
+        pw_main_loop *loop;
+        pw_stream *stream;
+        QProjectM_MainWindow *mainWindow;
+        QMutex *audioMutex;
+    };
+
+    static void on_process(void *userdata);
+    static void on_state_changed(void *data, enum pw_stream_state old_state,
+                                  enum pw_stream_state state, const char *error);
+
+    int argc;
+    char **argv;
+    QProjectM_MainWindow *m_qprojectM_MainWindow;
+    static QMutex *s_audioMutex;
+    static AudioData s_data;
+};
+
+#endif
