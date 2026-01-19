@@ -143,7 +143,8 @@ void presetSoftCut();
       void savePlaylistAsDialog();
       void about();
       void postProjectM_Initialize();
-      void updatePlaylistSelection(bool hardCut, unsigned int index);
+      // projectM 4.x: Index parameter removed, query from playlist API
+      void updatePlaylistSelection(bool hardCut);
       void selectPlaylistItem(const QModelIndex & index);
       void changePresetAttribute(const QModelIndex & index);
       void openSettingsDialog();

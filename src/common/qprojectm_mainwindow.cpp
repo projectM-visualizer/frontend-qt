@@ -236,11 +236,14 @@ void QProjectM_MainWindow::addPCM(float * buffer, unsigned int bufferSize)
     projectm_pcm_add_float(qprojectM()->instance(), buffer, bufferSize / 2, PROJECTM_STEREO);
 }
 
-void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut, unsigned int index )
+void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut )
 {
-	// projectM 4.x: Get preset name from playlist
+	// projectM 4.x: Get current position from playlist API (no index parameter in signal)
+	uint32_t index = 0;
 	QString presetName;
+
 	if (playlistModel && playlistModel->playlistHandle()) {
+		index = projectm_playlist_get_position(playlistModel->playlistHandle());
 		char* filename = projectm_playlist_item(playlistModel->playlistHandle(), index);
 		if (filename) {
 			presetName = QFileInfo(QString(filename)).fileName();
@@ -253,7 +256,9 @@ void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut, unsigned int 
 	else
 	    statusBar()->showMessage ( tr ( "*** Soft cut to \"%1\" ***" ).arg(presetName).toStdString().c_str(), 2000);
 
-	*activePresetIndex = (*historyHash[previousFilter])[index];
+	if (index < static_cast<uint32_t>(historyHash[previousFilter]->size())) {
+		*activePresetIndex = (*historyHash[previousFilter])[index];
+	}
 }
 
 void QProjectM_MainWindow::selectPlaylistItem ( const QModelIndex & index )
@@ -315,14 +320,15 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 	readConfig(m_QProjectMWidget->configFile());
 
 
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool,unsigned int ) ),
-		  this, SLOT ( updatePlaylistSelection ( bool,unsigned int ) ) );
+	// projectM 4.x: presetSwitchedSignal now only has bool parameter (no index)
+	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool ) ),
+		  this, SLOT ( updatePlaylistSelection ( bool ) ) );
 	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchFailedSignal ( const QString &, const QString & ) ),
 		  this, SLOT ( handleFailedPresetSwitch( const QString &, const QString &) ) );
 
 	// projectM 4.x: Rating signal removed
 
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool,unsigned int ) ),
+	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool ) ),
 		  playlistModel, SLOT ( updateItemHighlights() ) );
 
 	disconnect (m_QProjectMWidget);
