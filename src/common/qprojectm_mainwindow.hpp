@@ -119,9 +119,8 @@ protected:
 
 private slots:
 void dockLocationChanged(Qt::DockWidgetArea area);
-void presetRatingChanged(unsigned int, int, projectm_preset_rating_type);
-void handleFailedPresetSwitch(const bool isHardCut, const unsigned int index,
-		const QString & message);
+void presetRatingChanged(unsigned int, int);
+void handleFailedPresetSwitch(const QString & filename, const QString & message);
 
 void presetHardCut();
 void presetSoftCut();

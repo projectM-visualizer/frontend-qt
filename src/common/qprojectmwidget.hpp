@@ -77,13 +77,13 @@ class QProjectMWidget : public QOpenGLWidget
 		inline void seizePresetLock()
 		{
 			m_presetSeizeMutex.lock();
-			m_presetWasLocked = projectm_is_preset_locked(qprojectM()->instance());
-            projectm_lock_preset(qprojectM()->instance(), true);
+			m_presetWasLocked = projectm_get_preset_locked(qprojectM()->instance());
+            projectm_set_preset_locked(qprojectM()->instance(), true);
 		}
 
 		inline void releasePresetLock()
 		{
-		    projectm_lock_preset(qprojectM()->instance(),  m_presetWasLocked);
+		    projectm_set_preset_locked(qprojectM()->instance(),  m_presetWasLocked);
 			m_presetSeizeMutex.unlock();
 		}
 
@@ -141,13 +141,13 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void setPresetLock ( int state )
 		{
-            projectm_lock_preset(m_projectM->instance(), static_cast<bool>(state));
+            projectm_set_preset_locked(m_projectM->instance(), static_cast<bool>(state));
 			emit ( presetLockChanged ( ( bool ) state ) );
 		}
 
 		void setShuffleEnabled ( int state )
 		{
-            projectm_set_shuffle_enabled(m_projectM->instance(), static_cast<bool>(state));
+            
 			emit ( shuffleEnabledChanged ( ( bool ) state ) );
 		}
 

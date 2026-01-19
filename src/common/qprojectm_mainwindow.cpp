@@ -308,11 +308,10 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 
 	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool,unsigned int ) ),
 		  this, SLOT ( updatePlaylistSelection ( bool,unsigned int ) ) );
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchFailedSignal ( bool,unsigned int, const QString & ) ),
-		  this, SLOT ( handleFailedPresetSwitch( bool,unsigned int, const QString &) ) );
+	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchFailedSignal ( const QString &, const QString & ) ),
+		  this, SLOT ( handleFailedPresetSwitch( const QString &, const QString &) ) );
 
 
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetRatingChangedSignal ( unsigned int,int, PresetRatingType) ),
 			  this, SLOT ( presetRatingChanged( unsigned int,int, PresetRatingType) ));
 
 	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool,unsigned int ) ),
@@ -1291,10 +1290,9 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 }
 
 
-void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating, projectm_preset_rating_type ratingType)
+void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating)
 {
-	Q_UNUSED(ratingType);
-
+	// projectM 4.x: Rating type parameter removed
 	PlaylistItemVector & lastCache =  *historyHash[previousFilter];
 	const long id = lastCache[index];
 
@@ -1307,13 +1305,11 @@ void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating, 
 	playlistModel->notifyDataChanged(index);
 }
 
-void QProjectM_MainWindow::handleFailedPresetSwitch(const bool isHardCut, const unsigned int index,
-		const QString & message) {
-	Q_UNUSED(isHardCut);
-
+void QProjectM_MainWindow::handleFailedPresetSwitch(const QString & filename, const QString & message) {
+	// projectM 4.x: Callback now provides filename instead of index
 	qDebug() << "handleFailedPresetSwitch";
-	const QString status = QString("Error switching to preset index %1 (%2)")
-	                 .arg(index).arg(message);
+	const QString status = QString("Error switching to preset %1 (%2)")
+	                 .arg(filename).arg(message);
 
 	statusBar()->showMessage ( tr (status.toStdString().c_str() ) );
 
