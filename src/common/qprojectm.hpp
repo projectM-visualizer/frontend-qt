@@ -39,6 +39,10 @@ public:
         // projectM 4.x: projectm_create() takes no arguments
         // TODO: Load settings from config_file if needed
 
+        if (!_projectM) {
+            throw std::runtime_error("Failed to create projectM instance");
+        }
+
         // projectM 4.x: Callback signatures changed
         projectm_set_preset_switch_requested_event_callback(_projectM, &QProjectM::presetSwitchRequestedEvent, this);
         projectm_set_preset_switch_failed_event_callback(_projectM, &QProjectM::presetSwitchFailedEvent, this);
