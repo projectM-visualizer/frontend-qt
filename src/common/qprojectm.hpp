@@ -40,14 +40,18 @@ public:
         // TODO: Load settings from config_file if needed
 
         if (!_projectM) {
+            qCritical() << "Failed to create projectM instance - check OpenGL context";
             throw std::runtime_error("Failed to create projectM instance");
         }
+
+        qDebug() << "projectM instance created successfully";
 
         // projectM 4.x: Callback signatures changed
         projectm_set_preset_switch_requested_event_callback(_projectM, &QProjectM::presetSwitchRequestedEvent, this);
         projectm_set_preset_switch_failed_event_callback(_projectM, &QProjectM::presetSwitchFailedEvent, this);
 
         // projectM 4.x: Rating callback removed
+        qDebug() << "projectM callbacks registered";
     }
 
     projectm* instance() const
