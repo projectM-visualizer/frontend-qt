@@ -1,0 +1,15 @@
+{
+  "allowed_commands": [
+    {
+      "tool": "Bash",
+      "pattern": "ls.*",
+      "description": "Allow all ls commands"
+    },
+    {
+      "tool": "Bash",
+      "pattern": ".*",
+      "cwd_must_match": "/home/struktured/projects/projectm/frontend-qt(/.*)?",
+      "description": "Allow virtually any command within this directory"
+    }
+  ]
+}

@@ -39,5 +39,6 @@ target_include_directories(projectM-Qt-Common
 target_link_libraries(projectM-Qt-Common
         PUBLIC
         libprojectM::projectM
+        libprojectM::playlist
         ${QT_LINK_TARGETS}
         )
