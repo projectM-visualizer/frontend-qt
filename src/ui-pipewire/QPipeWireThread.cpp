@@ -131,9 +131,9 @@ void QPipeWireThread::cleanup()
 void QPipeWireThread::run()
 {
     const struct pw_stream_events stream_events = {
-        PW_VERSION_STREAM_EVENTS,
-        .process = on_process,
+        .version = PW_VERSION_STREAM_EVENTS,
         .state_changed = on_state_changed,
+        .process = on_process,
     };
 
     struct spa_pod_builder b = SPA_POD_BUILDER_INIT(nullptr, 0);
