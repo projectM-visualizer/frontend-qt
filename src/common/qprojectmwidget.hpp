@@ -43,13 +43,22 @@ class QProjectMWidget : public QOpenGLWidget
 		QProjectMWidget ( const QString& config_file, QWidget * parent, QMutex * audioMutex = 0 )
 				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_audioMutex ( audioMutex )
 		{
+			// projectM 4.x: Request OpenGL 3.3 Core Profile
+			QSurfaceFormat format;
+			format.setVersion(3, 3);
+			format.setProfile(QSurfaceFormat::CoreProfile);
+			format.setDepthBufferSize(24);
+			format.setStencilBufferSize(8);
+			format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+			format.setSwapInterval(1); // Enable vsync
+			setFormat(format);
 
 			m_mouseTimer = new QTimer ( this );
 
 			QSettings settings("projectM", "qprojectM");
-			mouseHideTimeoutSeconds = 
+			mouseHideTimeoutSeconds =
 				settings.value("MouseHideOnTimeout", MOUSE_VISIBLE_TIMEOUT_MS/1000).toInt();
-			
+
 			if (mouseHideTimeoutSeconds > 0)
 				m_mouseTimer->start ( mouseHideTimeoutSeconds * 1000);
 

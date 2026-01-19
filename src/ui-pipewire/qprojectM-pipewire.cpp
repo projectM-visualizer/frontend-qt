@@ -57,6 +57,16 @@ public:
 
 int main(int argc, char*argv[])
 {
+    // projectM 4.x: Set default OpenGL surface format before creating QApplication
+    QSurfaceFormat format;
+    format.setVersion(3, 3);
+    format.setProfile(QSurfaceFormat::CoreProfile);
+    format.setDepthBufferSize(24);
+    format.setStencilBufferSize(8);
+    format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+    format.setSwapInterval(1); // Enable vsync
+    QSurfaceFormat::setDefaultFormat(format);
+
     ProjectMApplication app(argc, argv);
 
     QString config_file;
