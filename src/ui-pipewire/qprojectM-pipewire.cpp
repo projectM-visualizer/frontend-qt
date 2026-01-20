@@ -77,9 +77,12 @@ int main(int argc, char*argv[])
     QProjectM_MainWindow * mainWindow = new QProjectM_MainWindow(config_file, &audioMutex);
     mainWindow->setAttribute(Qt::WA_ShowWithoutActivating, false);  // Ensure window activates
     mainWindow->setWindowState(Qt::WindowNoState);  // Not minimized/maximized
-    mainWindow->showNormal();  // Show as normal window
+    mainWindow->show();  // Show window
     mainWindow->raise();  // Bring window to front
     mainWindow->activateWindow();  // Make it the active window
+
+    // Process events to ensure window is mapped
+    app.processEvents();
 
     QPipeWireThread * pipewireThread = new QPipeWireThread(argc, argv, mainWindow);
     pipewireThread->start();

@@ -215,15 +215,41 @@ void QPlaylistModel::clear()
 bool QPlaylistModel::readPlaylist(const QString & file)
 {
     // projectM 4.x: Simplified XML reading
-    // For now, just add the presets from a directory
+    // If no playlist file specified, load from default preset directory
+    if (file.isEmpty()) {
+        QString presetPath = QDir::homePath() + "/.local/share/projectM/presets";
+        QFileInfo presetInfo(presetPath);
+        if (presetInfo.exists() && presetInfo.isDir()) {
+            qDebug() << "Loading presets from default directory:" << presetPath;
+            beginResetModel();
+            projectm_playlist_clear(m_playlist);
+            projectm_playlist_add_path(m_playlist, presetPath.toLocal8Bit().data(), true, false);
+            endResetModel();
+            return true;
+        } else {
+            qWarning() << "Default preset directory does not exist:" << presetPath;
+            return false;
+        }
+    }
+
     QFileInfo fileInfo(file);
     if (!fileInfo.exists()) {
         qWarning() << "Playlist file does not exist:" << file;
+        // Fall back to default preset directory
+        QString presetPath = QDir::homePath() + "/.local/share/projectM/presets";
+        QFileInfo presetInfo(presetPath);
+        if (presetInfo.exists() && presetInfo.isDir()) {
+            qDebug() << "Falling back to default preset directory:" << presetPath;
+            beginResetModel();
+            projectm_playlist_clear(m_playlist);
+            projectm_playlist_add_path(m_playlist, presetPath.toLocal8Bit().data(), true, false);
+            endResetModel();
+            return true;
+        }
         return false;
     }
 
-    // TODO: Implement XML playlist reading if needed
-    // For now, if the file is a directory, scan it
+    // If the file is a directory, scan it
     if (fileInfo.isDir()) {
         beginResetModel();
         projectm_playlist_clear(m_playlist);
@@ -232,6 +258,7 @@ bool QPlaylistModel::readPlaylist(const QString & file)
         return true;
     }
 
+    // TODO: Implement XML playlist reading if needed
     qWarning() << "XML playlist reading not yet implemented for projectM 4.x";
     return false;
 }

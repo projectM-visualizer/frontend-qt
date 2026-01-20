@@ -353,9 +353,10 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 	/// @bug hack: shouldn't have to change width for this to work correctly
 	m_QProjectMWidget->resize(m_QProjectMWidget->size().width()-1, m_QProjectMWidget->size().height());
 
-
-
-
+	// Ensure window is visible after OpenGL initialization
+	this->show();
+	this->raise();
+	this->activateWindow();
 }
 
 void QProjectM_MainWindow::openPresetEditorDialog(int rowIndex) {

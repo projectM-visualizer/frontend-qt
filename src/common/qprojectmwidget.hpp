@@ -229,46 +229,9 @@ class QProjectMWidget : public QOpenGLWidget
 		int mouseHideTimeoutSeconds;
 		void setup_opengl ( int w, int h )
 		{
-
-			/* Our shading model--Gouraud (smooth). */
-			glShadeModel ( GL_SMOOTH );
-			/* Culling. */
-			//    glCullFace( GL_BACK );
-			//    glFrontFace( GL_CCW );
-			//    glEnable( GL_CULL_FACE );
-			/* Set the clear color. */
-			glClearColor ( 0, 0, 0, 0 );
-			/* Setup our viewport. */
+			// projectM 4.x handles all OpenGL state internally
+			// We only need to set the viewport for the OpenGL 3.3 Core Profile
 			glViewport ( 0, 0, w, h );
-			/*
-					* Change to the projection matrix and set
-					* our viewing volume.
-			*/
-			glMatrixMode ( GL_TEXTURE );
-			glLoadIdentity();
-
-			//    gluOrtho2D(0.0, (GLfloat) width, 0.0, (GLfloat) height);
-			glMatrixMode ( GL_PROJECTION );
-			glLoadIdentity();
-
-			//    glFrustum(0.0, height, 0.0,width,10,40);
-			glMatrixMode ( GL_MODELVIEW );
-			glLoadIdentity();
-
-			glDrawBuffer ( GL_BACK );
-			glReadBuffer ( GL_BACK );
-			glEnable ( GL_BLEND );
-
-			glBlendFunc ( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-			// glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-			glEnable ( GL_LINE_SMOOTH );
-			glEnable ( GL_POINT_SMOOTH );
-			glClearColor ( 0.0f, 0.0f, 0.0f, 0.0f );
-//   glClear(GL_COLOR_BUFFER_BIT);
-
-			// glCopyTexImage2D(GL_TEXTURE_2D,0,GL_RGB,0,0,texsize,texsize,0);
-			//glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,texsize,texsize);
-			glLineStipple ( 2, 0xAAAA );
 		}
 
 
