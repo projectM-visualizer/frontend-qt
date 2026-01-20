@@ -61,19 +61,19 @@ public:
 
 signals:
 
-    // projectM 4.x: Switch requested callback has no index
-    void presetSwitchRequestedSignal(bool is_hard_cut) const;
+    // projectM 4.x: Preset switched signal (triggered by switch requested callback, no index parameter)
+    void presetSwitchedSignal(bool is_hard_cut) const;
 
     // projectM 4.x: Failed callback now has filename instead of index
     void presetSwitchFailedSignal(const QString& filename, const QString& message) const;
 
 protected:
 
-    // projectM 4.x: New callback signature
+    // projectM 4.x: New callback signature (emits presetSwitchedSignal)
     static void presetSwitchRequestedEvent(bool is_hard_cut, void* context)
     {
         auto qProjectM = reinterpret_cast<QProjectM*>(context);
-        qProjectM->presetSwitchRequestedSignal(is_hard_cut);
+        qProjectM->presetSwitchedSignal(is_hard_cut);
     }
 
     // projectM 4.x: New callback signature
