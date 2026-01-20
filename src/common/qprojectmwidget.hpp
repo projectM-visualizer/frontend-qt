@@ -213,7 +213,6 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void initializeGL() override
 		{
-
 		        if (m_projectM == 0) {
 			    this->m_projectM = new QProjectM ( m_config_file );
 			    projectM_Initialized ( m_projectM );
@@ -222,6 +221,9 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void paintGL() override
 		{
+		    if (!m_projectM || !m_projectM->instance()) {
+		        return;
+		    }
             projectm_opengl_render_frame(m_projectM->instance());
 		}
 

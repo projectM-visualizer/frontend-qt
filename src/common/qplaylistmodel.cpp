@@ -225,6 +225,13 @@ bool QPlaylistModel::readPlaylist(const QString & file)
             projectm_playlist_clear(m_playlist);
             projectm_playlist_add_path(m_playlist, presetPath.toLocal8Bit().data(), true, false);
             endResetModel();
+
+            // Start playing the first preset if we loaded any
+            uint32_t size = projectm_playlist_size(m_playlist);
+            if (size > 0) {
+                qDebug() << "Starting playback with" << size << "presets";
+                projectm_playlist_set_position(m_playlist, 0, true);
+            }
             return true;
         } else {
             qWarning() << "Default preset directory does not exist:" << presetPath;
@@ -244,6 +251,13 @@ bool QPlaylistModel::readPlaylist(const QString & file)
             projectm_playlist_clear(m_playlist);
             projectm_playlist_add_path(m_playlist, presetPath.toLocal8Bit().data(), true, false);
             endResetModel();
+
+            // Start playing the first preset if we loaded any
+            uint32_t size = projectm_playlist_size(m_playlist);
+            if (size > 0) {
+                qDebug() << "Starting playback with" << size << "presets";
+                projectm_playlist_set_position(m_playlist, 0, true);
+            }
             return true;
         }
         return false;
@@ -255,6 +269,13 @@ bool QPlaylistModel::readPlaylist(const QString & file)
         projectm_playlist_clear(m_playlist);
         projectm_playlist_add_path(m_playlist, file.toLocal8Bit().data(), true, false);
         endResetModel();
+
+        // Start playing the first preset if we loaded any
+        uint32_t size = projectm_playlist_size(m_playlist);
+        if (size > 0) {
+            qDebug() << "Starting playback with" << size << "presets from" << file;
+            projectm_playlist_set_position(m_playlist, 0, true);
+        }
         return true;
     }
 
