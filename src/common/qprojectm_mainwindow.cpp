@@ -233,7 +233,12 @@ projectm* QProjectM_MainWindow::GetProjectM()
 
 void QProjectM_MainWindow::addPCM(float * buffer, unsigned int bufferSize)
 {
-    projectm_pcm_add_float(qprojectM()->instance(), buffer, bufferSize / 2, PROJECTM_STEREO);
+    // Protect against race condition: PipeWire thread may call this before OpenGL initialization
+    QProjectM* qpm = qprojectM();
+    if (!qpm || !qpm->instance()) {
+        return;
+    }
+    projectm_pcm_add_float(qpm->instance(), buffer, bufferSize / 2, PROJECTM_STEREO);
 }
 
 void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut )

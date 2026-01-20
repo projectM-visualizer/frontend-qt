@@ -300,5 +300,8 @@ void QPlaylistModel::notifyDataChanged(unsigned int index)
 void QPlaylistModel::updateItemHighlights()
 {
     // Refresh the entire model to update playing/locked icons
-    emit dataChanged(index(0, 0), index(rowCount() - 1, 0));
+    int rows = rowCount();
+    if (rows > 0) {
+        emit dataChanged(index(0, 0), index(rows - 1, 0));
+    }
 }
