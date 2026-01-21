@@ -20,6 +20,7 @@
  */
 
 #include "QPipeWireThread.hpp"
+#include "QPipeWireDeviceChooser.hpp"
 #include <qprojectm_mainwindow.hpp>
 
 #include <projectM-4/projectM.h>
@@ -75,6 +76,11 @@ int main(int argc, char*argv[])
     QMutex audioMutex;
 
     QProjectM_MainWindow * mainWindow = new QProjectM_MainWindow(config_file, &audioMutex);
+
+    // Create PipeWire audio settings action
+    QAction pipeWireAction("PipeWire audio settings...", mainWindow);
+    mainWindow->registerSettingsAction(&pipeWireAction);
+
     mainWindow->setAttribute(Qt::WA_ShowWithoutActivating, false);  // Ensure window activates
     mainWindow->setWindowState(Qt::WindowNoState);  // Not minimized/maximized
     mainWindow->show();  // Show window
@@ -87,6 +93,13 @@ int main(int argc, char*argv[])
     QPipeWireThread * pipewireThread = new QPipeWireThread(argc, argv, mainWindow);
     pipewireThread->start();
 
+    // Create device chooser dialog
+    QPipeWireDeviceChooser devChooser(pipewireThread, mainWindow);
+
+    // Connect menu action to dialog
+    QApplication::connect(&pipeWireAction, SIGNAL(triggered()),
+                         &devChooser, SLOT(open()));
+
     int ret = app.exec();
 
     if (pipewireThread != nullptr) {
@@ -94,6 +107,8 @@ int main(int argc, char*argv[])
         pipewireThread->cleanup();
         delete pipewireThread;
     }
+
+    devChooser.writeSettings();
 
     return ret;
 }

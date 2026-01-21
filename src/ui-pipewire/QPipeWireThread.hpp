@@ -33,6 +33,8 @@
 #include <spa/param/audio/format-utils.h>
 
 #include "qprojectm_mainwindow.hpp"
+#include <QHash>
+#include <QModelIndex>
 
 class QPipeWireThread : public QThread
 {
@@ -46,12 +48,21 @@ public:
 
     QMutex * mutex();
     void writeSettings();
+    void readSettings();
+
+    // Device enumeration
+    static const QHash<uint32_t, QString>& sourceList() { return s_sourceList; }
+    static QString currentDeviceName() { return s_currentDeviceName; }
+    static uint32_t currentNodeId() { return s_currentNodeId; }
 
 public slots:
     void cleanup();
+    void connectDevice(const QModelIndex& index);
+    void connectDeviceById(uint32_t nodeId);
 
 signals:
     void threadCleanedUp();
+    void deviceChanged();
 
 private:
     struct AudioData {
@@ -59,17 +70,37 @@ private:
         pw_stream *stream;
         QProjectM_MainWindow *mainWindow;
         QMutex *audioMutex;
+        pw_core *core;
+        pw_registry *registry;
+        struct spa_hook registry_listener;
+        struct spa_hook stream_listener;
     };
 
     static void on_process(void *userdata);
     static void on_state_changed(void *data, enum pw_stream_state old_state,
                                   enum pw_stream_state state, const char *error);
 
+    // Registry callbacks for device enumeration
+    static void on_registry_global(void *data, uint32_t id,
+                                   uint32_t permissions,
+                                   const char *type,
+                                   uint32_t version,
+                                   const struct spa_dict *props);
+    static void on_registry_global_remove(void *data, uint32_t id);
+
+    void enumerateDevices();
+    void reconnect(uint32_t nodeId);
+
     int argc;
     char **argv;
     QProjectM_MainWindow *m_qprojectM_MainWindow;
     static QMutex *s_audioMutex;
     static AudioData s_data;
+
+    // Device storage
+    static QHash<uint32_t, QString> s_sourceList;  // node_id -> display_name
+    static QString s_currentDeviceName;
+    static uint32_t s_currentNodeId;
 };
 
 #endif

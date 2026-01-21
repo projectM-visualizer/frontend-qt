@@ -84,6 +84,9 @@ m_QPlaylistFileDialog( new QPlaylistFileDialog ( this ))
 	ui = new Ui::QProjectM_MainWindow();
 	ui->setupUi ( this );
 
+	// Initialize historyHash early to prevent race conditions
+	historyHash.insert(QString(), new PlaylistItemVector);
+
 	m_QProjectMWidget = new QProjectMWidget ( config_file, this, audioMutex);
 
 	m_timer = new QTimer ( this );
@@ -481,7 +484,6 @@ void QProjectM_MainWindow::readPlaylistSettings() {
 			ui->presetPlayListDockWidget->hide();
 		else
 			ui->presetPlayListDockWidget->show();
-		ui->presetPlayListDockWidget->hide();
 	}
 }
 

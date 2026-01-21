@@ -5,7 +5,12 @@ endif()
 add_executable(projectM-Qt-PipeWire
         ConfigFile.h
         ConfigFile.cpp
+        PipeWireDeviceChooserDialog.ui
         qprojectM-pipewire.cpp
+        QPipeWireDeviceChooser.cpp
+        QPipeWireDeviceChooser.hpp
+        QPipeWireDeviceModel.cpp
+        QPipeWireDeviceModel.hpp
         QPipeWireThread.cpp
         QPipeWireThread.hpp
         )
