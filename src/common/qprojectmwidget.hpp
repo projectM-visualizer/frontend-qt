@@ -73,9 +73,13 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void resizeGL ( int w, int h ) override
 		{
+			qDebug() << "resizeGL called:" << w << "x" << h;
 			// Setup viewport, projection etc
 			setup_opengl ( w,h );
-			projectm_set_window_size(m_projectM->instance(), static_cast<size_t>(w), static_cast<size_t>(h));
+			if (m_projectM && m_projectM->instance()) {
+			    projectm_set_window_size(m_projectM->instance(), static_cast<size_t>(w), static_cast<size_t>(h));
+			    qDebug() << "resizeGL: Window size set in projectM";
+			}
 		}
 
 		inline const QString& configFile()
@@ -221,10 +225,28 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void paintGL() override
 		{
+		    static int frameCount = 0;
 		    if (!m_projectM || !m_projectM->instance()) {
+		        qDebug() << "paintGL: No projectM instance";
 		        return;
 		    }
+
+		    if (frameCount == 0) {
+		        qDebug() << "paintGL: First frame, widget size:" << width() << "x" << height();
+		        qDebug() << "paintGL: Calling projectm_opengl_render_frame";
+		    }
+
             projectm_opengl_render_frame(m_projectM->instance());
+
+            if (frameCount == 0) {
+                GLenum err = glGetError();
+                if (err != GL_NO_ERROR) {
+                    qDebug() << "paintGL: OpenGL error after render:" << err;
+                }
+                qDebug() << "paintGL: First frame complete";
+            }
+
+            frameCount++;
 		}
 
 	private:

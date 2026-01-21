@@ -230,7 +230,15 @@ bool QPlaylistModel::readPlaylist(const QString & file)
             uint32_t size = projectm_playlist_size(m_playlist);
             if (size > 0) {
                 qDebug() << "Starting playback with" << size << "presets";
-                projectm_playlist_set_position(m_playlist, 0, true);
+                uint32_t pos = projectm_playlist_set_position(m_playlist, 0, true);
+                qDebug() << "Playlist position after set:" << pos;
+
+                // Get the preset name to verify it loaded
+                char* filename = projectm_playlist_item(m_playlist, pos);
+                if (filename) {
+                    qDebug() << "First preset:" << QString(filename);
+                    projectm_playlist_free_string(filename);
+                }
             }
             return true;
         } else {
@@ -256,7 +264,15 @@ bool QPlaylistModel::readPlaylist(const QString & file)
             uint32_t size = projectm_playlist_size(m_playlist);
             if (size > 0) {
                 qDebug() << "Starting playback with" << size << "presets";
-                projectm_playlist_set_position(m_playlist, 0, true);
+                uint32_t pos = projectm_playlist_set_position(m_playlist, 0, true);
+                qDebug() << "Playlist position after set:" << pos;
+
+                // Get the preset name to verify it loaded
+                char* filename = projectm_playlist_item(m_playlist, pos);
+                if (filename) {
+                    qDebug() << "First preset:" << QString(filename);
+                    projectm_playlist_free_string(filename);
+                }
             }
             return true;
         }
