@@ -27,11 +27,15 @@
 #include <projectM-4/render_opengl.h>
 #include <QOpenGLWidget>
 #include <QMutex>
+#include <QMutexLocker>
 #include <QtDebug>
 #include <QKeyEvent>
 #include <QTimer>
 #include <QApplication>
 #include <QSettings>
+#include <vector>
+#include <cstring>
+#include <algorithm>
 
 class QProjectMWidget : public QOpenGLWidget
 {
@@ -41,7 +45,8 @@ class QProjectMWidget : public QOpenGLWidget
 	public:
 		static const int MOUSE_VISIBLE_TIMEOUT_MS = 5000;
 		QProjectMWidget ( const QString& config_file, QWidget * parent, QMutex * audioMutex = 0 )
-				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_renderTimer ( 0 ), m_audioMutex ( audioMutex )
+				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_renderTimer ( 0 ), m_audioMutex ( audioMutex ),
+				  m_audioBuffer(AUDIO_BUFFER_SIZE, 0.0f), m_audioWritePos(0), m_audioReadPos(0)
 		{
 			// projectM 4.x: Request OpenGL 3.3 Core Profile
 			QSurfaceFormat format;
@@ -110,6 +115,15 @@ class QProjectMWidget : public QOpenGLWidget
 
 
 		inline QProjectM * qprojectM() { return m_projectM; }
+
+		// Thread-safe audio queueing - called from audio thread
+		void queueAudio(const float* samples, size_t count) {
+			QMutexLocker locker(&m_audioBufferMutex);
+			for (size_t i = 0; i < count && i < AUDIO_BUFFER_SIZE; ++i) {
+				m_audioBuffer[m_audioWritePos] = samples[i];
+				m_audioWritePos = (m_audioWritePos + 1) % AUDIO_BUFFER_SIZE;
+			}
+		}
 
 	protected slots:
 		inline void mouseMoveEvent ( QMouseEvent * event )
@@ -230,6 +244,13 @@ class QProjectMWidget : public QOpenGLWidget
 		QMutex * m_audioMutex;
 		QMutex m_presetSeizeMutex;
 		bool m_presetWasLocked;
+
+		// Thread-safe audio buffer for visualization
+		static constexpr size_t AUDIO_BUFFER_SIZE = 16384;
+		std::vector<float> m_audioBuffer;
+		size_t m_audioWritePos;
+		size_t m_audioReadPos;
+		QMutex m_audioBufferMutex;
 	protected:
 
 
@@ -270,24 +291,46 @@ class QProjectMWidget : public QOpenGLWidget
 		        qDebug() << "paintGL: Current FBO:" << fbo;
 		    }
 
-            // QOpenGLWidget uses its own FBO - we must render to it, not FBO 0
-            GLuint fbo = defaultFramebufferObject();
-            projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
+		    // Process buffered audio in render thread (thread-safe)
+		    {
+		        QMutexLocker locker(&m_audioBufferMutex);
+		        if (m_audioReadPos != m_audioWritePos) {
+		            // Calculate available samples
+		            size_t available = (m_audioWritePos - m_audioReadPos + AUDIO_BUFFER_SIZE) % AUDIO_BUFFER_SIZE;
+		            // Process in chunks
+		            static std::vector<float> tempBuffer(4096);
+		            while (available > 0) {
+		                size_t toRead = std::min(available, tempBuffer.size());
+		                for (size_t i = 0; i < toRead; ++i) {
+		                    tempBuffer[i] = m_audioBuffer[m_audioReadPos];
+		                    m_audioReadPos = (m_audioReadPos + 1) % AUDIO_BUFFER_SIZE;
+		                }
+		                // Add audio to projectM (now in render thread - safe!)
+		                projectm_pcm_add_float(m_projectM->instance(), tempBuffer.data(),
+		                                       static_cast<unsigned int>(toRead / 2), PROJECTM_STEREO);
+		                available -= toRead;
+		            }
+		        }
+		    }
 
-            if (frameCount == 0) {
-                GLenum err = glGetError();
-                if (err != GL_NO_ERROR) {
-                    qDebug() << "paintGL: OpenGL error after render:" << err;
-                }
-                qDebug() << "paintGL: First frame complete";
-            }
+		    // QOpenGLWidget uses its own FBO - we must render to it, not FBO 0
+		    GLuint fbo = defaultFramebufferObject();
+		    projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
 
-            frameCount++;
+		    if (frameCount == 0) {
+		        GLenum err = glGetError();
+		        if (err != GL_NO_ERROR) {
+		            qDebug() << "paintGL: OpenGL error after render:" << err;
+		        }
+		        qDebug() << "paintGL: First frame complete";
+		    }
 
-            // Log every 60 frames (~1 second at 60fps)
-            if (frameCount % 60 == 0) {
-                qDebug() << "paintGL: Frame" << frameCount << "rendered";
-            }
+		    frameCount++;
+
+		    // Log every 60 frames (~1 second at 60fps)
+		    if (frameCount % 60 == 0) {
+		        qDebug() << "paintGL: Frame" << frameCount << "rendered";
+		    }
 		}
 
 	private:

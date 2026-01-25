@@ -90,6 +90,9 @@ int main(int argc, char*argv[])
     // Process events to ensure window is mapped
     app.processEvents();
 
+    // Set the audio mutex for thread synchronization BEFORE starting the thread
+    QPipeWireThread::setAudioMutex(&audioMutex);
+
     QPipeWireThread * pipewireThread = new QPipeWireThread(argc, argv, mainWindow);
     pipewireThread->start();
 

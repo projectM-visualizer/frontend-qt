@@ -34,6 +34,7 @@
 #include "ui_qprojectm_mainwindow.h"
 
 #include <QtWidgets>
+#include <QRandomGenerator>
 #include <QTextStream>
 #include <QCloseEvent>
 #include <QFileDialog>
@@ -236,12 +237,10 @@ projectm* QProjectM_MainWindow::GetProjectM()
 
 void QProjectM_MainWindow::addPCM(float * buffer, unsigned int bufferSize)
 {
-    // Protect against race condition: PipeWire thread may call this before OpenGL initialization
-    QProjectM* qpm = qprojectM();
-    if (!qpm || !qpm->instance()) {
-        return;
+    // Queue audio for processing in render thread (thread-safe)
+    if (m_QProjectMWidget) {
+        m_QProjectMWidget->queueAudio(buffer, bufferSize);
     }
-    projectm_pcm_add_float(qpm->instance(), buffer, bufferSize / 2, PROJECTM_STEREO);
 }
 
 void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut )
@@ -626,6 +625,7 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 			return;
 
 		case Qt::Key_R:
+			// Random preset selection
 			if (!(e->modifiers() & Qt::ControlModifier)) {
 				if ( ui->presetSearchBarLineEdit->hasFocus() )
 					return;
@@ -633,7 +633,13 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 				if (ui->tableView->hasFocus())
 					return;
 			}
-
+			if (playlistModel && playlistModel->playlistHandle()) {
+				uint32_t size = projectm_playlist_size(playlistModel->playlistHandle());
+				if (size > 0) {
+					uint32_t randomIndex = QRandomGenerator::global()->bounded(size);
+					projectm_playlist_set_position(playlistModel->playlistHandle(), randomIndex, true);
+				}
+			}
 			return;
 
 		case Qt::Key_N:

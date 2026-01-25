@@ -47,6 +47,7 @@ public:
     void run() override;
 
     QMutex * mutex();
+    static void setAudioMutex(QMutex *mutex) { s_audioMutex = mutex; }
     void writeSettings();
     void readSettings();
 

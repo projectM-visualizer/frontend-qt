@@ -135,16 +135,9 @@ void QPipeWireThread::on_process(void *userdata)
                  << "peak:" << peak;
     }
 
-    if (data->audioMutex) {
-        data->audioMutex->lock();
-    }
-
-    // Add audio samples to projectM
+    // Queue audio samples for render thread (thread-safe buffer)
+    // No mutex needed here - the widget's audio buffer handles synchronization
     data->mainWindow->addPCM(samples, n_samples);
-
-    if (data->audioMutex) {
-        data->audioMutex->unlock();
-    }
 
     pw_stream_queue_buffer(data->stream, b);
 }
