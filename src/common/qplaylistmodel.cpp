@@ -87,8 +87,12 @@ QVariant QPlaylistModel::data(const QModelIndex & index, int role) const
                     // Return full path for URL info
                     return path;
                 }
-                // For DisplayRole and NameRole, return just the filename (default behavior)
-                return QFileInfo(path).fileName();
+                // For DisplayRole and NameRole, return just the filename without .milk extension
+                QString name = QFileInfo(path).fileName();
+                if (name.endsWith(".milk", Qt::CaseInsensitive)) {
+                    name.chop(5);  // Remove ".milk"
+                }
+                return name;
             }
             return QVariant();
         }

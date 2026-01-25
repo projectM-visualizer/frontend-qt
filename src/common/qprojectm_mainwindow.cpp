@@ -488,37 +488,27 @@ void QProjectM_MainWindow::readPlaylistSettings() {
 }
 
 void QProjectM_MainWindow::setMenuVisible(bool visible) {
+	// Save current geometry before toggling
+	QRect currentGeometry = geometry();
 
-
-
+	// Toggle menu/status bars only
+	// Playlist visibility is controlled independently via 'h' key
 	if (visible) {
-		// Don't resize - playlist stays visible, no need to resize
-		// ui->dockWidgetContents->resize(_oldPlaylistSize);
-
-		ui->presetPlayListDockWidget->show();
 		if (_menuAndStatusBarsVisible) {
 			menuBar()->show();
 			statusBar()->show();
 		}
-		else {
-			menuBar()->hide();
-			statusBar()->hide();
-		}
 		_menuVisible = true;
 	} else {
-		// Don't save size - playlist stays visible, no need to save/restore
-		// _oldPlaylistSize = ui->dockWidgetContents->size();
-
-		// Don't hide the playlist - it causes window to shrink to tiny rectangle
-		// Keep playlist visible even in fullscreen/menu-hidden mode
-		// if (!ui->presetPlayListDockWidget->isFloating())
-		// 	ui->presetPlayListDockWidget->hide();
-
 		menuBar()->hide();
 		statusBar()->hide();
 		_menuVisible = false;
 	}
 
+	// Restore geometry after a brief delay to let Qt finish layout
+	QTimer::singleShot(10, this, [this, currentGeometry]() {
+		setGeometry(currentGeometry);
+	});
 }
 
 void QProjectM_MainWindow::changePresetAttribute ( const QModelIndex & index )
@@ -645,6 +635,48 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 			}
 
 			return;
+
+		case Qt::Key_N:
+			// Next preset
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			if (playlistModel && playlistModel->playlistHandle()) {
+				projectm_playlist_play_next(playlistModel->playlistHandle(), true);
+			}
+			return;
+
+		case Qt::Key_P:
+			// Previous preset
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			if (playlistModel && playlistModel->playlistHandle()) {
+				projectm_playlist_play_previous(playlistModel->playlistHandle(), true);
+			}
+			return;
+
+		case Qt::Key_H:
+			// Toggle playlist visibility independently
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			if (ui->presetPlayListDockWidget->isVisible()) {
+				ui->presetPlayListDockWidget->hide();
+			} else {
+				ui->presetPlayListDockWidget->show();
+			}
+			return;
+
 		default:
 			break;
 	}
