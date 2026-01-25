@@ -492,7 +492,8 @@ void QProjectM_MainWindow::setMenuVisible(bool visible) {
 
 
 	if (visible) {
-		ui->dockWidgetContents->resize(_oldPlaylistSize);
+		// Don't resize - playlist stays visible, no need to resize
+		// ui->dockWidgetContents->resize(_oldPlaylistSize);
 
 		ui->presetPlayListDockWidget->show();
 		if (_menuAndStatusBarsVisible) {
@@ -505,11 +506,13 @@ void QProjectM_MainWindow::setMenuVisible(bool visible) {
 		}
 		_menuVisible = true;
 	} else {
-		_oldPlaylistSize = ui->dockWidgetContents->size();
+		// Don't save size - playlist stays visible, no need to save/restore
+		// _oldPlaylistSize = ui->dockWidgetContents->size();
 
-		// Only hide the playlist when it is attached to the main window.
-		if (!ui->presetPlayListDockWidget->isFloating())
-			ui->presetPlayListDockWidget->hide();
+		// Don't hide the playlist - it causes window to shrink to tiny rectangle
+		// Keep playlist visible even in fullscreen/menu-hidden mode
+		// if (!ui->presetPlayListDockWidget->isFloating())
+		// 	ui->presetPlayListDockWidget->hide();
 
 		menuBar()->hide();
 		statusBar()->hide();

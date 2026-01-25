@@ -99,6 +99,7 @@ private:
 
     // Device storage
     static QHash<uint32_t, QString> s_sourceList;  // node_id -> display_name
+    static QHash<uint32_t, bool> s_isSinkMap;      // node_id -> is_sink (true for monitors)
     static QString s_currentDeviceName;
     static uint32_t s_currentNodeId;
 };

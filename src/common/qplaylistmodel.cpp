@@ -83,11 +83,12 @@ QVariant QPlaylistModel::data(const QModelIndex & index, int role) const
                 QString path(filename);
                 projectm_playlist_free_string(filename);
 
-                if (role == NameRole) {
-                    // Return just the filename without path
-                    return QFileInfo(path).fileName();
+                if (role == URLInfoRole) {
+                    // Return full path for URL info
+                    return path;
                 }
-                return path;
+                // For DisplayRole and NameRole, return just the filename (default behavior)
+                return QFileInfo(path).fileName();
             }
             return QVariant();
         }

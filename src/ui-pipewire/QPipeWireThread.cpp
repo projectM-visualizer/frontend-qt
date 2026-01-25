@@ -22,10 +22,13 @@
 #include "QPipeWireThread.hpp"
 #include <QSettings>
 #include <cstring>
+#include <cmath>
+#include <algorithm>
 
 QMutex *QPipeWireThread::s_audioMutex = nullptr;
 QPipeWireThread::AudioData QPipeWireThread::s_data = {};
 QHash<uint32_t, QString> QPipeWireThread::s_sourceList;
+QHash<uint32_t, bool> QPipeWireThread::s_isSinkMap;
 QString QPipeWireThread::s_currentDeviceName;
 uint32_t QPipeWireThread::s_currentNodeId = PW_ID_ANY;
 
@@ -76,6 +79,9 @@ void QPipeWireThread::on_state_changed(void *data, enum pw_stream_state old_stat
 
 void QPipeWireThread::on_process(void *userdata)
 {
+    static int call_count = 0;
+    static int samples_with_data = 0;
+
     AudioData *data = static_cast<AudioData *>(userdata);
 
     if (!data->mainWindow) {
@@ -95,11 +101,39 @@ void QPipeWireThread::on_process(void *userdata)
 
     buf = b->buffer;
     if (buf->datas[0].data == nullptr) {
+        if (++call_count % 100 == 0) {
+            qDebug() << "PipeWire: on_process called" << call_count << "times, but buffer data is null";
+        }
+        pw_stream_queue_buffer(data->stream, b);
         return;
     }
 
     samples = static_cast<float *>(buf->datas[0].data);
     n_samples = buf->datas[0].chunk->size / sizeof(float);
+
+    // Check if there's actual audio data (not silence)
+    bool has_signal = false;
+    for (uint32_t i = 0; i < std::min(n_samples, 100u); i++) {
+        if (std::abs(samples[i]) > 0.001f) {
+            has_signal = true;
+            samples_with_data++;
+            break;
+        }
+    }
+
+    // Calculate peak level for debugging
+    float peak = 0.0f;
+    for (uint32_t i = 0; i < n_samples; i++) {
+        float abs_val = std::abs(samples[i]);
+        if (abs_val > peak) peak = abs_val;
+    }
+
+    if (++call_count % 100 == 0) {
+        qDebug() << "PipeWire: on_process called" << call_count << "times,"
+                 << n_samples << "samples,"
+                 << samples_with_data << "buffers with audio data,"
+                 << "peak:" << peak;
+    }
 
     if (data->audioMutex) {
         data->audioMutex->lock();
@@ -157,6 +191,7 @@ void QPipeWireThread::on_registry_global(void *data, uint32_t id,
     }
 
     s_sourceList.insert(id, display_name);
+    s_isSinkMap.insert(id, is_sink);  // Track whether this is a sink (needs monitoring)
     qDebug() << "Found PipeWire audio device:" << display_name << "(ID:" << id << ")";
 }
 
@@ -195,6 +230,10 @@ void QPipeWireThread::reconnect(uint32_t nodeId)
 {
     qDebug() << "Reconnecting to PipeWire node ID:" << nodeId;
 
+    // Check if this node is a sink (needs monitoring)
+    bool is_sink = s_isSinkMap.value(nodeId, false);
+    qDebug() << "Node" << nodeId << "is" << (is_sink ? "sink (monitor mode)" : "source (direct capture)");
+
     // Disconnect current stream if active
     if (s_data.stream) {
         pw_stream_disconnect(s_data.stream);
@@ -209,6 +248,12 @@ void QPipeWireThread::reconnect(uint32_t nodeId)
         PW_KEY_MEDIA_ROLE, "Music",
         PW_KEY_APP_NAME, "projectM",
         nullptr);
+
+    // For sinks, set the capture.sink property to enable monitoring
+    if (is_sink) {
+        pw_properties_set(props, "stream.capture.sink", "true");
+        qDebug() << "Enabled sink monitoring mode";
+    }
 
     // Stream events
     static const struct pw_stream_events stream_events = {

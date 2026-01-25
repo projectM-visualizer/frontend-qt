@@ -41,7 +41,7 @@ class QProjectMWidget : public QOpenGLWidget
 	public:
 		static const int MOUSE_VISIBLE_TIMEOUT_MS = 5000;
 		QProjectMWidget ( const QString& config_file, QWidget * parent, QMutex * audioMutex = 0 )
-				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_audioMutex ( audioMutex )
+				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_renderTimer ( 0 ), m_audioMutex ( audioMutex )
 		{
 			// projectM 4.x: Request OpenGL 3.3 Core Profile
 			QSurfaceFormat format;
@@ -54,6 +54,14 @@ class QProjectMWidget : public QOpenGLWidget
 			setFormat(format);
 
 			m_mouseTimer = new QTimer ( this );
+
+			// Create render timer for continuous animation
+			m_renderTimer = new QTimer ( this );
+			m_renderTimer->setInterval(16); // ~60 FPS
+			connect ( m_renderTimer, SIGNAL ( timeout() ), this, SLOT ( triggerUpdate() ) );
+			qDebug() << "Render timer created and starting...";
+			m_renderTimer->start();
+			qDebug() << "Render timer running:" << m_renderTimer->isActive();
 
 			QSettings settings("projectM", "qprojectM");
 			mouseHideTimeoutSeconds =
@@ -124,6 +132,17 @@ class QProjectMWidget : public QOpenGLWidget
 
 	public slots:
 
+		void triggerUpdate()
+		{
+			static int triggerCount = 0;
+			if (triggerCount % 60 == 0) {
+				qDebug() << "triggerUpdate called" << triggerCount << "times, isVisible:" << isVisible();
+			}
+			triggerCount++;
+			// Use repaint() to force immediate paint, not just schedule it
+			repaint();
+		}
+
 		void resetProjectM()
 		{
 			std::cout << "resetting" << std::endl;
@@ -173,7 +192,12 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void updateGL()
         {
-		    paintGL();
+		    static int updateCount = 0;
+		    if (updateCount % 60 == 0) {
+		        qDebug() << "updateGL called" << updateCount << "times";
+		    }
+		    updateCount++;
+		    update(); // Trigger repaint
         }
 
 	signals:
@@ -202,6 +226,7 @@ class QProjectMWidget : public QOpenGLWidget
 		}
 
 		QTimer * m_mouseTimer;
+		QTimer * m_renderTimer;
 		QMutex * m_audioMutex;
 		QMutex m_presetSeizeMutex;
 		bool m_presetWasLocked;
@@ -234,9 +259,20 @@ class QProjectMWidget : public QOpenGLWidget
 		    if (frameCount == 0) {
 		        qDebug() << "paintGL: First frame, widget size:" << width() << "x" << height();
 		        qDebug() << "paintGL: Calling projectm_opengl_render_frame";
+
+		        // Check OpenGL state
+		        GLint viewport[4];
+		        glGetIntegerv(GL_VIEWPORT, viewport);
+		        qDebug() << "paintGL: Viewport:" << viewport[0] << viewport[1] << viewport[2] << viewport[3];
+
+		        GLint fbo;
+		        glGetIntegerv(GL_FRAMEBUFFER_BINDING, &fbo);
+		        qDebug() << "paintGL: Current FBO:" << fbo;
 		    }
 
-            projectm_opengl_render_frame(m_projectM->instance());
+            // QOpenGLWidget uses its own FBO - we must render to it, not FBO 0
+            GLuint fbo = defaultFramebufferObject();
+            projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
 
             if (frameCount == 0) {
                 GLenum err = glGetError();
@@ -247,6 +283,11 @@ class QProjectMWidget : public QOpenGLWidget
             }
 
             frameCount++;
+
+            // Log every 60 frames (~1 second at 60fps)
+            if (frameCount % 60 == 0) {
+                qDebug() << "paintGL: Frame" << frameCount << "rendered";
+            }
 		}
 
 	private:
