@@ -1,0 +1,5 @@
+QPipeWireDeviceChooser_moc.cpp
+QPipeWireDeviceModel_moc.cpp
+QPipeWireThread_moc.cpp
+projectM-pipewire
+ui_PipeWireDeviceChooserDialog.h

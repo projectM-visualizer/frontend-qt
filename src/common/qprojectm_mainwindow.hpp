@@ -23,7 +23,7 @@
 #define QPROJECTM_MAINWINDOW_H
 #define CONFIG_FILE "/share/projectM/config.inp"
 
-#include <libprojectM/projectM.h>
+#include <projectM-4/projectM.h>
 
 #include <QMainWindow>
 #include <QCloseEvent>
@@ -55,9 +55,6 @@ struct projectm;
 namespace Ui {
 class QProjectM_MainWindow;
 }
-
-#include <iostream>
-
 
 class QProjectM_MainWindow:public QMainWindow
 {
@@ -119,12 +116,12 @@ protected:
 
 private slots:
 void dockLocationChanged(Qt::DockWidgetArea area);
-void presetRatingChanged(unsigned int, int, projectm_preset_rating_type);
-void handleFailedPresetSwitch(const bool isHardCut, const unsigned int index,
-		const QString & message);
+void presetRatingChanged(unsigned int, int);
+void handleFailedPresetSwitch(const QString & filename, const QString & message);
 
 void presetHardCut();
 void presetSoftCut();
+void setShuffleEnabled(int state);
 	void insertPresetsDialog() ;
 	void removeSelectedPlaylistItems();
 
@@ -144,7 +141,8 @@ void presetSoftCut();
       void savePlaylistAsDialog();
       void about();
       void postProjectM_Initialize();
-      void updatePlaylistSelection(bool hardCut, unsigned int index);
+      // projectM 4.x: Index parameter removed, query from playlist API
+      void updatePlaylistSelection(bool hardCut);
       void selectPlaylistItem(const QModelIndex & index);
       void changePresetAttribute(const QModelIndex & index);
       void openSettingsDialog();
@@ -201,7 +199,7 @@ void presetSoftCut();
       QMenu *playlistContextMenu;
       QToolBar *fileToolBar;
 
-      QAction *openAct;;
+      QAction *openAct;
       QAction *exitAct;
       QAction *aboutAct;
       QAction *aboutQtAct;

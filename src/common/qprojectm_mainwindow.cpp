@@ -34,9 +34,11 @@
 #include "ui_qprojectm_mainwindow.h"
 
 #include <QtWidgets>
+#include <QRandomGenerator>
 #include <QTextStream>
 #include <QCloseEvent>
 #include <QFileDialog>
+#include <projectM-4/playlist.h>
 
 
 class PlaylistWriteFunctor {
@@ -83,6 +85,9 @@ m_QPlaylistFileDialog( new QPlaylistFileDialog ( this ))
 	ui = new Ui::QProjectM_MainWindow();
 	ui->setupUi ( this );
 
+	// Initialize historyHash early to prevent race conditions
+	historyHash.insert(QString(), new PlaylistItemVector);
+
 	m_QProjectMWidget = new QProjectMWidget ( config_file, this, audioMutex);
 
 	m_timer = new QTimer ( this );
@@ -92,7 +97,7 @@ m_QPlaylistFileDialog( new QPlaylistFileDialog ( this ))
 	          m_QProjectMWidget, SLOT ( setPresetLock ( int ) ) );
 
 	connect ( ui->shuffleEnabledCheckBox, SIGNAL ( stateChanged ( int ) ),
-		  m_QProjectMWidget, SLOT ( setShuffleEnabled ( int ) ) );
+		  this, SLOT ( setShuffleEnabled ( int ) ) );
 
 	connect ( ui->clearPresetList_PushButton, SIGNAL ( pressed() ),
 	          this, SLOT ( clearPlaylist() ) );
@@ -169,11 +174,11 @@ void QProjectM_MainWindow::readConfig(const QString& configFile ) {
     size_t windowHeight;
 	projectm_get_window_size(qprojectM()->instance(), &windowWidth, &windowHeight);
 
-	auto projectMSettings = projectm_get_settings(qprojectM()->instance());
-
-	ui->shuffleEnabledCheckBox->setCheckState(projectMSettings->shuffle_enabled ? Qt::Checked : Qt::Unchecked);
-
-    projectm_free_settings(projectMSettings);
+	// projectM 4.x: Shuffle is now in playlist library
+	if (playlistModel && playlistModel->playlistHandle()) {
+		bool shuffleEnabled = projectm_playlist_get_shuffle(playlistModel->playlistHandle());
+		ui->shuffleEnabledCheckBox->setCheckState(shuffleEnabled ? Qt::Checked : Qt::Unchecked);
+	}
 
     this->resize(static_cast<int>(windowWidth), static_cast<int>(windowHeight));
 }
@@ -232,21 +237,36 @@ projectm* QProjectM_MainWindow::GetProjectM()
 
 void QProjectM_MainWindow::addPCM(float * buffer, unsigned int bufferSize)
 {
-    projectm_pcm_add_float(qprojectM()->instance(), buffer, bufferSize / 2, PROJECTM_STEREO);
+    // Queue audio for processing in render thread (thread-safe)
+    if (m_QProjectMWidget) {
+        m_QProjectMWidget->queueAudio(buffer, bufferSize);
+    }
 }
 
-void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut, unsigned int index )
+void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut )
 {
-    auto presetName = projectm_get_preset_name(qprojectM()->instance(), index);
+	// projectM 4.x: Get current position from playlist API (no index parameter in signal)
+	uint32_t index = 0;
+	QString presetName;
+
+	if (playlistModel && playlistModel->playlistHandle()) {
+		index = projectm_playlist_get_position(playlistModel->playlistHandle());
+		char* filename = projectm_playlist_item(playlistModel->playlistHandle(), index);
+		if (filename) {
+			presetName = QFileInfo(QString(filename)).fileName();
+			projectm_playlist_free_string(filename);
+		}
+	}
 
 	if ( hardCut )
 	    statusBar()->showMessage ( tr(QString( "*** Hard cut to \"%1\" ***" ).arg(presetName).toStdString().c_str()) , 2000 );
 	else
 	    statusBar()->showMessage ( tr ( "*** Soft cut to \"%1\" ***" ).arg(presetName).toStdString().c_str(), 2000);
 
-    projectm_free_string(presetName);
-
-	*activePresetIndex = (*historyHash[previousFilter])[index];
+	if (historyHash.contains(previousFilter) && historyHash[previousFilter] &&
+	    index < static_cast<uint32_t>(historyHash[previousFilter]->size())) {
+		*activePresetIndex = (*historyHash[previousFilter])[index];
+	}
 }
 
 void QProjectM_MainWindow::selectPlaylistItem ( const QModelIndex & index )
@@ -260,7 +280,14 @@ void QProjectM_MainWindow::selectPlaylistItem ( const QModelIndex & index )
 
 void QProjectM_MainWindow::selectPlaylistItem ( int rowIndex)
 {
-    projectm_select_preset(qprojectM()->instance(), static_cast<unsigned int>(rowIndex), true);
+	// projectM 4.x: Use playlist API for preset selection
+	// Defer to paintGL where the GL context is current (preset loading compiles shaders)
+	if (playlistModel && playlistModel->playlistHandle()) {
+		auto* playlist = playlistModel->playlistHandle();
+		qprojectMWidget()->queueGLOperation([playlist, rowIndex]() {
+			projectm_playlist_set_position(playlist, static_cast<uint32_t>(rowIndex), true);
+		});
+	}
 	*activePresetIndex = rowIndex;
 
 	playlistModel->updateItemHighlights();
@@ -285,9 +312,8 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 		QString playlistFile;
 		if ((playlistFile = qSettings.value("PlaylistFile", QString()).toString()) == QString())
         {
-		    auto projectMSettings = projectm_get_settings(qprojectM()->instance());
-		    url = QString(projectMSettings->preset_url);
-		    projectm_free_settings(projectMSettings);
+			// projectM 4.x: Settings API removed, just use empty URL
+			url = QString();
         }
 		else
 			url = playlistFile;
@@ -306,16 +332,15 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 	readConfig(m_QProjectMWidget->configFile());
 
 
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool,unsigned int ) ),
-		  this, SLOT ( updatePlaylistSelection ( bool,unsigned int ) ) );
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchFailedSignal ( bool,unsigned int, const QString & ) ),
-		  this, SLOT ( handleFailedPresetSwitch( bool,unsigned int, const QString &) ) );
+	// projectM 4.x: presetSwitchedSignal now only has bool parameter (no index)
+	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool ) ),
+		  this, SLOT ( updatePlaylistSelection ( bool ) ) );
+	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchFailedSignal ( const QString &, const QString & ) ),
+		  this, SLOT ( handleFailedPresetSwitch( const QString &, const QString &) ) );
 
+	// projectM 4.x: Rating signal removed
 
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetRatingChangedSignal ( unsigned int,int, PresetRatingType) ),
-			  this, SLOT ( presetRatingChanged( unsigned int,int, PresetRatingType) ));
-
-	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool,unsigned int ) ),
+	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool ) ),
 		  playlistModel, SLOT ( updateItemHighlights() ) );
 
 	disconnect (m_QProjectMWidget);
@@ -340,9 +365,10 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 	/// @bug hack: shouldn't have to change width for this to work correctly
 	m_QProjectMWidget->resize(m_QProjectMWidget->size().width()-1, m_QProjectMWidget->size().height());
 
-
-
-
+	// Ensure window is visible after OpenGL initialization
+	this->show();
+	this->raise();
+	this->activateWindow();
 }
 
 void QProjectM_MainWindow::openPresetEditorDialog(int rowIndex) {
@@ -462,72 +488,38 @@ void QProjectM_MainWindow::readPlaylistSettings() {
 			ui->presetPlayListDockWidget->hide();
 		else
 			ui->presetPlayListDockWidget->show();
-		ui->presetPlayListDockWidget->hide();
 	}
 }
 
 void QProjectM_MainWindow::setMenuVisible(bool visible) {
+	// Save current geometry before toggling
+	QRect currentGeometry = geometry();
 
-
-
+	// Toggle menu/status bars only
+	// Playlist visibility is controlled independently via 'h' key
 	if (visible) {
-		ui->dockWidgetContents->resize(_oldPlaylistSize);
-
-		ui->presetPlayListDockWidget->show();
 		if (_menuAndStatusBarsVisible) {
 			menuBar()->show();
 			statusBar()->show();
 		}
-		else {
-			menuBar()->hide();
-			statusBar()->hide();
-		}
 		_menuVisible = true;
 	} else {
-		_oldPlaylistSize = ui->dockWidgetContents->size();
-
-		// Only hide the playlist when it is attached to the main window.
-		if (!ui->presetPlayListDockWidget->isFloating())
-			ui->presetPlayListDockWidget->hide();
-
 		menuBar()->hide();
 		statusBar()->hide();
 		_menuVisible = false;
 	}
 
+	// Restore geometry after a brief delay to let Qt finish layout
+	QTimer::singleShot(10, this, [this, currentGeometry]() {
+		setGeometry(currentGeometry);
+	});
 }
 
 void QProjectM_MainWindow::changePresetAttribute ( const QModelIndex & index )
 {
-
-	if ( index.column() == 0 )
-		return;
-
-	PlaylistItemVector & lastCache =  *historyHash[previousFilter];
-	const long id = lastCache[index.row()];
-
-	ui->presetPlayListDockWidget->setWindowModified ( true );
-
-	if (index.column() == 1)
-	{
-		/// @bug get rid of hard coded rating boundaries
-		const int newRating = ( ( playlistModel->data ( index, QPlaylistModel::RatingRole ).toInt() ) % 6 ) +1  ;
-
-		playlistModel->setData ( index, newRating, QPlaylistModel::RatingRole );
-
-
-	}
-	else if (index.column() == 2)
-	{
-
-		/// @bug get rid of hard coded breedability boundaries
-		const int newBreedability = ( ( playlistModel->data ( index, QPlaylistModel::BreedabilityRole ).toInt() ) % 6 ) +1  ;
-
-		playlistItemMetaDataHash[id].breedability = newBreedability;
-
-		playlistModel->setData ( index, newBreedability, QPlaylistModel::BreedabilityRole );
-	}
-
+	// projectM 4.x: Rating system removed
+	Q_UNUSED(index);
+	return;
 }
 
 void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
@@ -638,6 +630,7 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 			return;
 
 		case Qt::Key_R:
+			// Random preset selection - deferred to paintGL where GL context is current
 			if (!(e->modifiers() & Qt::ControlModifier)) {
 				if ( ui->presetSearchBarLineEdit->hasFocus() )
 					return;
@@ -645,8 +638,65 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 				if (ui->tableView->hasFocus())
 					return;
 			}
-
+			if (playlistModel && playlistModel->playlistHandle()) {
+				auto* playlist = playlistModel->playlistHandle();
+				uint32_t size = projectm_playlist_size(playlist);
+				if (size > 0) {
+					uint32_t randomIndex = QRandomGenerator::global()->bounded(size);
+					qprojectMWidget()->queueGLOperation([playlist, randomIndex]() {
+						projectm_playlist_set_position(playlist, randomIndex, true);
+					});
+				}
+			}
 			return;
+
+		case Qt::Key_N:
+			// Next preset - deferred to paintGL where GL context is current
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			if (playlistModel && playlistModel->playlistHandle()) {
+				auto* playlist = playlistModel->playlistHandle();
+				qprojectMWidget()->queueGLOperation([playlist]() {
+					projectm_playlist_play_next(playlist, true);
+				});
+			}
+			return;
+
+		case Qt::Key_P:
+			// Previous preset - deferred to paintGL where GL context is current
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			if (playlistModel && playlistModel->playlistHandle()) {
+				auto* playlist = playlistModel->playlistHandle();
+				qprojectMWidget()->queueGLOperation([playlist]() {
+					projectm_playlist_play_previous(playlist, true);
+				});
+			}
+			return;
+
+		case Qt::Key_H:
+			// Toggle playlist visibility independently
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			if (ui->presetPlayListDockWidget->isVisible()) {
+				ui->presetPlayListDockWidget->hide();
+			} else {
+				ui->presetPlayListDockWidget->show();
+			}
+			return;
+
 		default:
 			break;
 	}
@@ -657,26 +707,9 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 void QProjectM_MainWindow::refreshHeaders(QResizeEvent * event) {
 	Q_UNUSED(event);
 
-
+	// projectM 4.x: Only one column (preset name), no ratings
     hHeader->setSectionResizeMode ( 0, QHeaderView::Fixed);
-    hHeader->setSectionResizeMode ( 1, QHeaderView::ResizeToContents);
-
-    auto settings = projectm_get_settings(qprojectM()->instance());
-
-    const int numRatings =  settings->soft_cut_ratings_enabled ? 2 : 1;
-
-    projectm_free_settings(settings);
-
-	int sizeTotal = 0;
-	for (int i = 0; i < numRatings; i++) {
-		// Add 1 to skip the Name column
-        hHeader->setSectionResizeMode (i+1, QHeaderView::ResizeToContents);
-		sizeTotal += hHeader->sectionSize(i+1);
-	}
-	hHeader->resizeSection(0, ui->tableView->size().width()-20-sizeTotal);
-
-
-
+	hHeader->resizeSection(0, ui->tableView->size().width()-20);
 }
 
 
@@ -923,8 +956,9 @@ void QProjectM_MainWindow::copyPlaylist()
 		const QString & url = playlistModel->data ( index,
 		                      QPlaylistModel::URLInfoRole ).toString();
 		const QString & name = playlistModel->data ( index, Qt::DisplayRole ).toString();
-		int rating = playlistModel->data ( index, QPlaylistModel::RatingRole ).toInt();
-		int breed = playlistModel->data ( index, QPlaylistModel::BreedabilityRole).toInt();
+		// projectM 4.x: Ratings removed, use default values
+		int rating = 3;
+		int breed = 3;
 		items->push_back (playlistItemCounter );
 		playlistItemMetaDataHash[playlistItemCounter] =
 				PlaylistItemMetaData ( url, name, rating, breed, playlistItemCounter );
@@ -935,11 +969,13 @@ void QProjectM_MainWindow::copyPlaylist()
 
 	historyHash.insert ( QString(), items );
 
-	uint index;
-	if (projectm_get_selected_preset_index(qprojectM()->instance(), &index))
-		*activePresetIndex =  index;
-	else
+	// projectM 4.x: Use playlist API to get position
+	if (playlistModel && playlistModel->playlistHandle()) {
+		uint32_t position = projectm_playlist_get_position(playlistModel->playlistHandle());
+		*activePresetIndex = position;
+	} else {
 		activePresetIndex->nullify();
+	}
 
 	qprojectMWidget()->releasePresetLock();
 }
@@ -1013,7 +1049,8 @@ void QProjectM_MainWindow::insertPlaylistItem
 		items->insert(insertIndex, data.id);
 	}
 
-	playlistModel->insertRow(targetIndex, data.url, data.name, data.rating, data.breedability);
+	// projectM 4.x: insertRow now takes only index and URL
+	playlistModel->insertRow(targetIndex, data.url);
 
 	qprojectMWidget()->releasePresetLock();
 }
@@ -1090,7 +1127,14 @@ void QProjectM_MainWindow::presetHardCut() {
 	if (selectedPlaylistIndexes.empty())
 		return;
 
-    projectm_select_preset(qprojectM()->instance(), selectedPlaylistIndexes[0].row(), true);
+	// Defer to paintGL where GL context is current (preset loading compiles shaders)
+	if (playlistModel && playlistModel->playlistHandle()) {
+		auto* playlist = playlistModel->playlistHandle();
+		uint32_t row = static_cast<uint32_t>(selectedPlaylistIndexes[0].row());
+		qprojectMWidget()->queueGLOperation([playlist, row]() {
+			projectm_playlist_set_position(playlist, row, true);
+		});
+	}
 }
 
 
@@ -1098,7 +1142,20 @@ void QProjectM_MainWindow::presetSoftCut() {
 	if (selectedPlaylistIndexes.empty())
 		return;
 
-	projectm_select_preset(qprojectM()->instance(), selectedPlaylistIndexes[0].row(), false);
+	// Defer to paintGL where GL context is current (preset loading compiles shaders)
+	if (playlistModel && playlistModel->playlistHandle()) {
+		auto* playlist = playlistModel->playlistHandle();
+		uint32_t row = static_cast<uint32_t>(selectedPlaylistIndexes[0].row());
+		qprojectMWidget()->queueGLOperation([playlist, row]() {
+			projectm_playlist_set_position(playlist, row, false);
+		});
+	}
+}
+
+void QProjectM_MainWindow::setShuffleEnabled(int state) {
+	if (playlistModel && playlistModel->playlistHandle()) {
+		projectm_playlist_set_shuffle(playlistModel->playlistHandle(), static_cast<bool>(state));
+	}
 }
 
 
@@ -1223,8 +1280,13 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 	qprojectMWidget()->seizePresetLock();
 
 	const QString filter = text.toLower();
-	unsigned int presetIndexBackup ;
-	bool presetSelected = projectm_get_selected_preset_index(qprojectM()->instance(), &presetIndexBackup);
+	// projectM 4.x: Use playlist API to get position
+	uint32_t presetIndexBackup = 0;
+	bool presetSelected = false;
+	if (playlistModel && playlistModel->playlistHandle()) {
+		presetIndexBackup = projectm_playlist_get_position(playlistModel->playlistHandle());
+		presetSelected = (playlistModel->rowCount() > 0);
+	}
 	Nullable<unsigned int> activePresetId;
 
 	if (!presetSelected && activePresetIndex->hasValue()) {
@@ -1242,8 +1304,6 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 
 	playlistModel->clearItems();
 
-	Q_ASSERT(!projectm_preset_position_valid(qprojectM()->instance()));
-
 	bool presetExistsWithinFilter = false;
 	if ( historyHash.contains ( filter ) )
 	{
@@ -1252,10 +1312,15 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 		{
 			const PlaylistItemMetaData & data = playlistItemMetaDataHash[*pos];
 
-			playlistModel->appendRow ( data.url, data.name,  data.rating, data.breedability);
+			// projectM 4.x: appendRow now takes only URL
+			playlistModel->appendRow ( data.url );
 
 			if (activePresetId.hasValue() && data.id == activePresetId.value()) {
-				projectm_select_preset_position(qprojectM()->instance(), playlistModel->rowCount()-1);
+				// projectM 4.x: Use playlist API to set position
+				if (playlistModel->playlistHandle()) {
+					projectm_playlist_set_position(playlistModel->playlistHandle(),
+						playlistModel->rowCount()-1, false);
+				}
 				presetExistsWithinFilter = true;
 			}
 		}
@@ -1272,9 +1337,14 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 
 			if ( ( data.name ).contains ( filter, Qt::CaseInsensitive ) )
 			{
-				playlistModel->appendRow ( data.url, data.name, data.rating, data.breedability);
+				// projectM 4.x: appendRow now takes only URL
+				playlistModel->appendRow ( data.url );
 				if (activePresetId.hasValue() && data.id == activePresetId.value()) {
-				    projectm_select_preset_position(qprojectM()->instance(), playlistModel->rowCount()-1);
+					// projectM 4.x: Use playlist API to set position
+					if (playlistModel->playlistHandle()) {
+						projectm_playlist_set_position(playlistModel->playlistHandle(),
+							playlistModel->rowCount()-1, false);
+					}
 					presetExistsWithinFilter = true;
 				}
 
@@ -1284,17 +1354,14 @@ void QProjectM_MainWindow::updateFilteredPlaylist ( const QString & text )
 		historyHash.insert ( filter, playlistItems2 );
 	}
 
-	Q_ASSERT(presetExistsWithinFilter == projectm_preset_position_valid(qprojectM()->instance()));
-
 	previousFilter = filter;
 	qprojectMWidget()->releasePresetLock();
 }
 
 
-void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating, projectm_preset_rating_type ratingType)
+void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating)
 {
-	Q_UNUSED(ratingType);
-
+	// projectM 4.x: Rating type parameter removed
 	PlaylistItemVector & lastCache =  *historyHash[previousFilter];
 	const long id = lastCache[index];
 
@@ -1307,13 +1374,11 @@ void QProjectM_MainWindow::presetRatingChanged( unsigned int index, int rating, 
 	playlistModel->notifyDataChanged(index);
 }
 
-void QProjectM_MainWindow::handleFailedPresetSwitch(const bool isHardCut, const unsigned int index,
-		const QString & message) {
-	Q_UNUSED(isHardCut);
-
+void QProjectM_MainWindow::handleFailedPresetSwitch(const QString & filename, const QString & message) {
+	// projectM 4.x: Callback now provides filename instead of index
 	qDebug() << "handleFailedPresetSwitch";
-	const QString status = QString("Error switching to preset index %1 (%2)")
-	                 .arg(index).arg(message);
+	const QString status = QString("Error switching to preset %1 (%2)")
+	                 .arg(filename).arg(message);
 
 	statusBar()->showMessage ( tr (status.toStdString().c_str() ) );
 

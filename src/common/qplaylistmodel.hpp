@@ -22,7 +22,6 @@
 #ifndef QPROJECTM_PLAYLISTMODEL_H
 #define QPROJECTM_PLAYLISTMODEL_H
 
-#include <cassert>
 #include <QAbstractTableModel>
 #include <QVector>
 
@@ -32,6 +31,7 @@
 class QXmlStreamReader;
 class QDragMoveEvent;
 struct projectm;
+struct projectm_playlist;
 
 class QPlaylistModel : public QAbstractTableModel
  {
@@ -39,16 +39,15 @@ class QPlaylistModel : public QAbstractTableModel
 
 public:
 static const int URLInfoRole = Qt::UserRole;
-static const int RatingRole = Qt::UserRole+1;
 static const int NameRole = Qt::UserRole+2;
-static const int BreedabilityRole = Qt::UserRole+3;
 
      QPlaylistModel(projectm* _projectM, QObject * parent = 0);
-     ~QPlaylistModel() { }
+     ~QPlaylistModel();
 bool setData(const QModelIndex & index, const QVariant & value, int role=Qt::EditRole);
 
-void appendRow (const QString & presetURL, const QString & presetName, int rating, int breedability);
-void insertRow (int index, const QString & presetURL, const QString & presetName, int rating, int breedability);
+// projectM 4.x: Simplified - no ratings
+void appendRow (const QString & presetURL);
+void insertRow (int index, const QString & presetURL);
 
 bool removeRow (int index, const QModelIndex & parent = QModelIndex());
 bool removeRows ( int row, int count, const QModelIndex & parent = QModelIndex());
@@ -62,8 +61,7 @@ int columnCount ( const QModelIndex & parent= QModelIndex()) const ;
 
 bool readPlaylist(const QString & file);
 bool writePlaylist ( const QString & file );
-QVariant breedabilityToIcon( int rating )  const;
-QString getBreedabilityToolTip(int rating) const;
+bool loadPresetsFromDirectory(const QString & path);
 Qt::ItemFlags flags(const QModelIndex &index) const;
 
 
@@ -79,6 +77,10 @@ inline void setPlaylistDesc(const QString & desc) {
 inline Qt::DropActions supportedDropActions() const
 {
 	return Qt::MoveAction;
+}
+
+inline projectm_playlist* playlistHandle() const {
+	return m_playlist;
 }
 
 void notifyDataChanged(unsigned int index);
@@ -97,15 +99,12 @@ public slots:
 	void updateItemHighlights();
 	
 	 private:
-	static QString getSillyRatingToolTip(int rating);
 	void readPlaylistItem(QXmlStreamReader & reader);
 	static QString PRESET_MIME_TYPE;
-	QVariant ratingToIcon(int rating) const;
 	projectm* m_projectM;
+	projectm_playlist* m_playlist;  // projectM 4.x: Separate playlist handle
 	QString m_playlistName;
 	QString m_playlistDesc;
-
-private:
-bool softCutRatingsEnabled() const;
 };
+
 #endif

@@ -46,7 +46,7 @@
 
 #include <qprojectm_mainwindow.hpp>
 
-#include <libprojectM/projectM.h>
+#include <projectM-4/projectM.h>
 
 #include <QApplication>
 #include <QAction>

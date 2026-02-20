@@ -1,3 +1,11 @@
 add_subdirectory(common)
-add_subdirectory(ui-jack)
-add_subdirectory(ui-pulseaudio)
+
+if(ENABLE_PIPEWIRE)
+    add_subdirectory(ui-pipewire)
+else()
+    add_subdirectory(ui-pulseaudio)
+endif()
+
+if(ENABLE_JACK)
+    add_subdirectory(ui-jack)
+endif()

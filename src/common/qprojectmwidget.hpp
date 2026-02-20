@@ -22,15 +22,21 @@
 #ifndef QPROJECTM_WIDGET_HPP
 #define QPROJECTM_WIDGET_HPP
 
-#include <iostream>
+#include <functional>
 #include "qprojectm.hpp"
+#include <projectM-4/render_opengl.h>
 #include <QOpenGLWidget>
 #include <QMutex>
+#include <QMutexLocker>
 #include <QtDebug>
 #include <QKeyEvent>
 #include <QTimer>
 #include <QApplication>
 #include <QSettings>
+#include <vector>
+#include <queue>
+#include <cstring>
+#include <algorithm>
 
 class QProjectMWidget : public QOpenGLWidget
 {
@@ -40,15 +46,31 @@ class QProjectMWidget : public QOpenGLWidget
 	public:
 		static const int MOUSE_VISIBLE_TIMEOUT_MS = 5000;
 		QProjectMWidget ( const QString& config_file, QWidget * parent, QMutex * audioMutex = 0 )
-				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_audioMutex ( audioMutex )
+				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_renderTimer ( 0 ), m_audioMutex ( audioMutex ),
+				  m_audioBuffer(AUDIO_BUFFER_SIZE, 0.0f), m_audioWritePos(0), m_audioReadPos(0)
 		{
+			// projectM 4.x: Request OpenGL 3.3 Core Profile
+			QSurfaceFormat format;
+			format.setVersion(3, 3);
+			format.setProfile(QSurfaceFormat::CoreProfile);
+			format.setDepthBufferSize(24);
+			format.setStencilBufferSize(8);
+			format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
+			format.setSwapInterval(1); // Enable vsync
+			setFormat(format);
 
 			m_mouseTimer = new QTimer ( this );
 
+			// Create render timer for continuous animation
+			m_renderTimer = new QTimer ( this );
+			m_renderTimer->setInterval(16); // ~60 FPS
+			connect ( m_renderTimer, SIGNAL ( timeout() ), this, SLOT ( triggerUpdate() ) );
+			m_renderTimer->start();
+
 			QSettings settings("projectM", "qprojectM");
-			mouseHideTimeoutSeconds = 
+			mouseHideTimeoutSeconds =
 				settings.value("MouseHideOnTimeout", MOUSE_VISIBLE_TIMEOUT_MS/1000).toInt();
-			
+
 			if (mouseHideTimeoutSeconds > 0)
 				m_mouseTimer->start ( mouseHideTimeoutSeconds * 1000);
 
@@ -65,7 +87,10 @@ class QProjectMWidget : public QOpenGLWidget
 		{
 			// Setup viewport, projection etc
 			setup_opengl ( w,h );
-			projectm_set_window_size(m_projectM->instance(), static_cast<size_t>(w), static_cast<size_t>(h));
+			// Queue resize for next paintGL to avoid race conditions
+			m_pendingWidth = w;
+			m_pendingHeight = h;
+			m_resizePending = true;
 		}
 
 		inline const QString& configFile()
@@ -76,18 +101,39 @@ class QProjectMWidget : public QOpenGLWidget
 		inline void seizePresetLock()
 		{
 			m_presetSeizeMutex.lock();
-			m_presetWasLocked = projectm_is_preset_locked(qprojectM()->instance());
-            projectm_lock_preset(qprojectM()->instance(), true);
+			m_presetWasLocked = projectm_get_preset_locked(qprojectM()->instance());
+            projectm_set_preset_locked(qprojectM()->instance(), true);
 		}
 
 		inline void releasePresetLock()
 		{
-		    projectm_lock_preset(qprojectM()->instance(),  m_presetWasLocked);
+		    projectm_set_preset_locked(qprojectM()->instance(),  m_presetWasLocked);
 			m_presetSeizeMutex.unlock();
 		}
 
 
 		inline QProjectM * qprojectM() { return m_projectM; }
+
+		// Get mutex for protecting projectM API calls from other threads
+		QMutex* projectMMutex() { return &m_projectMMutex; }
+
+		// Thread-safe audio queueing - called from audio thread
+		void queueAudio(const float* samples, size_t count) {
+			QMutexLocker locker(&m_audioBufferMutex);
+			for (size_t i = 0; i < count && i < AUDIO_BUFFER_SIZE; ++i) {
+				m_audioBuffer[m_audioWritePos] = samples[i];
+				m_audioWritePos = (m_audioWritePos + 1) % AUDIO_BUFFER_SIZE;
+			}
+		}
+
+		// Queue an operation that requires the OpenGL context to be current.
+		// The operation will execute inside paintGL() before rendering.
+		// Use this for preset switching, window resize, and any projectM API
+		// call that creates/destroys GL resources (shaders, textures, etc).
+		void queueGLOperation(std::function<void()> op) {
+			QMutexLocker locker(&m_glOpsMutex);
+			m_pendingGLOps.push(std::move(op));
+		}
 
 	protected slots:
 		inline void mouseMoveEvent ( QMouseEvent * event )
@@ -110,11 +156,13 @@ class QProjectMWidget : public QOpenGLWidget
 
 	public slots:
 
+		void triggerUpdate()
+		{
+			update();
+		}
+
 		void resetProjectM()
 		{
-			std::cout << "resetting" << std::endl;
-			qDebug() << "reset start";
-
 			emit ( projectM_BeforeDestroy() );
 
 			if ( m_audioMutex )
@@ -130,7 +178,6 @@ class QProjectMWidget : public QOpenGLWidget
 			{
 				m_audioMutex->unlock();
 			}
-			qDebug() << "reinit'ed";
 		}
 
 		void setAudioMutex ( QMutex * mutex )
@@ -140,14 +187,8 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void setPresetLock ( int state )
 		{
-            projectm_lock_preset(m_projectM->instance(), static_cast<bool>(state));
+            projectm_set_preset_locked(m_projectM->instance(), static_cast<bool>(state));
 			emit ( presetLockChanged ( ( bool ) state ) );
-		}
-
-		void setShuffleEnabled ( int state )
-		{
-            projectm_set_shuffle_enabled(m_projectM->instance(), static_cast<bool>(state));
-			emit ( shuffleEnabledChanged ( ( bool ) state ) );
 		}
 
 		void mousePressEvent ( QMouseEvent * event )
@@ -158,15 +199,14 @@ class QProjectMWidget : public QOpenGLWidget
 		}
 
 		void updateGL()
-        {
-		    paintGL();
-        }
+		{
+			update();
+		}
 
 	signals:
 		void projectM_Initialized ( QProjectM * );
 		void projectM_BeforeDestroy();
 		void presetLockChanged ( bool isLocked );
-		void shuffleEnabledChanged ( bool isShuffleEnabled );
 
 	private slots:
 		void hideMouse()
@@ -188,81 +228,40 @@ class QProjectMWidget : public QOpenGLWidget
 		}
 
 		QTimer * m_mouseTimer;
+		QTimer * m_renderTimer;
 		QMutex * m_audioMutex;
 		QMutex m_presetSeizeMutex;
-		bool m_presetWasLocked;
+		bool m_presetWasLocked = false;
+
+		// Thread-safe audio buffer for visualization
+		static constexpr size_t AUDIO_BUFFER_SIZE = 16384;
+		std::vector<float> m_audioBuffer;
+		size_t m_audioWritePos;
+		size_t m_audioReadPos;
+		QMutex m_audioBufferMutex;
+
+		// Mutex to protect all projectM API calls
+		QMutex m_projectMMutex;
+
+		// Deferred resize to avoid race conditions
+		int m_pendingWidth = 0;
+		int m_pendingHeight = 0;
+		bool m_resizePending = false;
+
+		// Queue of operations that need the GL context current
+		std::queue<std::function<void()>> m_pendingGLOps;
+		QMutex m_glOpsMutex;
 	protected:
 
 
 		void keyReleaseEvent ( QKeyEvent * e )
 		{
-
-			projectMKeycode pkey;
-			bool ignore = false;
-			switch ( e->key() )
-			{
-				case Qt::Key_F4:
-					pkey =  PROJECTM_K_F4;
-					break;
-				case Qt::Key_F3:
-					pkey =  PROJECTM_K_F3;
-					break;
-				case Qt::Key_F2:
-					pkey =  PROJECTM_K_F2;
-					break;
-				case Qt::Key_F1:
-					pkey =  PROJECTM_K_F1;
-					break;
-				case Qt::Key_R:
-					if (e->modifiers() & Qt::ShiftModifier)
-						pkey =  PROJECTM_K_R;
-					else
-						pkey =  PROJECTM_K_r;
-					break;				
-				case Qt::Key_L:
-					pkey =  PROJECTM_K_l;
-					ignore = true;
-					break;
-				case Qt::Key_N:	
-					if (e->modifiers() & Qt::ShiftModifier)
-						pkey =  PROJECTM_K_N;
-					else
-						pkey =  PROJECTM_K_n;
-					break;
-				case Qt::Key_P:
-					if (e->modifiers() & Qt::ShiftModifier)
-						pkey =  PROJECTM_K_P;
-					else
-						pkey =  PROJECTM_K_p;
-					break;
-				case Qt::Key_F5:
-					pkey =  PROJECTM_K_F5;
-					break;
-				case Qt::Key_Plus:
-					pkey =  PROJECTM_K_PLUS;
-					break;
-				case Qt::Key_Minus:
-					pkey =  PROJECTM_K_MINUS;
-					break;
-				case Qt::Key_Equal:
-					pkey = PROJECTM_K_EQUALS;
-					break;
-				default:
-					e->ignore();
-					return;
-			}
-			projectMModifier modifier = PROJECTM_KMOD_NONE;
-
-            projectm_key_handler(m_projectM->instance(), PROJECTM_KEYDOWN, pkey, modifier);
-			if ( ignore )
-				e->ignore();
-
-
+			// projectM 4.x: Key handling moved to QProjectM_MainWindow::keyReleaseEvent
+			e->ignore();
 		}
 
 		void initializeGL() override
 		{
-
 		        if (m_projectM == 0) {
 			    this->m_projectM = new QProjectM ( m_config_file );
 			    projectM_Initialized ( m_projectM );
@@ -271,53 +270,66 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void paintGL() override
 		{
-            projectm_render_frame(m_projectM->instance());
+		    if (!m_projectM || !m_projectM->instance()) {
+		        return;
+		    }
+
+		    // Lock projectM mutex to protect all API calls
+		    QMutexLocker projectMLock(&m_projectMMutex);
+
+		    // Process any pending resize first (deferred from resizeGL)
+		    if (m_resizePending) {
+		        projectm_set_window_size(m_projectM->instance(),
+		                                 static_cast<size_t>(m_pendingWidth),
+		                                 static_cast<size_t>(m_pendingHeight));
+		        m_resizePending = false;
+		    }
+
+		    // Process deferred GL operations (preset switches, etc.)
+		    // GL context is guaranteed current here inside paintGL.
+		    // This is critical: preset loading compiles shaders and creates
+		    // GL textures, which requires an active GL context.
+		    {
+		        QMutexLocker locker(&m_glOpsMutex);
+		        while (!m_pendingGLOps.empty()) {
+		            auto op = std::move(m_pendingGLOps.front());
+		            m_pendingGLOps.pop();
+		            locker.unlock();
+		            op();
+		            locker.relock();
+		        }
+		    }
+
+		    // Process buffered audio in render thread
+		    {
+		        QMutexLocker locker(&m_audioBufferMutex);
+		        if (m_audioReadPos != m_audioWritePos) {
+		            size_t available = (m_audioWritePos - m_audioReadPos + AUDIO_BUFFER_SIZE) % AUDIO_BUFFER_SIZE;
+		            constexpr size_t MAX_CHUNK = 2048;
+		            float tempBuffer[MAX_CHUNK];
+		            size_t toRead = std::min(available, MAX_CHUNK);
+		            for (size_t i = 0; i < toRead; ++i) {
+		                float sample = m_audioBuffer[m_audioReadPos];
+		                tempBuffer[i] = std::max(-1.0f, std::min(1.0f, sample));
+		                m_audioReadPos = (m_audioReadPos + 1) % AUDIO_BUFFER_SIZE;
+		            }
+		            projectm_pcm_add_float(m_projectM->instance(), tempBuffer,
+		                                   static_cast<unsigned int>(toRead / 2), PROJECTM_STEREO);
+		        }
+		    }
+
+		    // QOpenGLWidget uses its own FBO - render to it
+		    GLuint fbo = defaultFramebufferObject();
+		    projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
 		}
 
 	private:
 		int mouseHideTimeoutSeconds;
 		void setup_opengl ( int w, int h )
 		{
-
-			/* Our shading model--Gouraud (smooth). */
-			glShadeModel ( GL_SMOOTH );
-			/* Culling. */
-			//    glCullFace( GL_BACK );
-			//    glFrontFace( GL_CCW );
-			//    glEnable( GL_CULL_FACE );
-			/* Set the clear color. */
-			glClearColor ( 0, 0, 0, 0 );
-			/* Setup our viewport. */
+			// projectM 4.x handles all OpenGL state internally
+			// We only need to set the viewport for the OpenGL 3.3 Core Profile
 			glViewport ( 0, 0, w, h );
-			/*
-					* Change to the projection matrix and set
-					* our viewing volume.
-			*/
-			glMatrixMode ( GL_TEXTURE );
-			glLoadIdentity();
-
-			//    gluOrtho2D(0.0, (GLfloat) width, 0.0, (GLfloat) height);
-			glMatrixMode ( GL_PROJECTION );
-			glLoadIdentity();
-
-			//    glFrustum(0.0, height, 0.0,width,10,40);
-			glMatrixMode ( GL_MODELVIEW );
-			glLoadIdentity();
-
-			glDrawBuffer ( GL_BACK );
-			glReadBuffer ( GL_BACK );
-			glEnable ( GL_BLEND );
-
-			glBlendFunc ( GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA );
-			// glBlendFunc(GL_SRC_ALPHA, GL_ONE);
-			glEnable ( GL_LINE_SMOOTH );
-			glEnable ( GL_POINT_SMOOTH );
-			glClearColor ( 0.0f, 0.0f, 0.0f, 0.0f );
-//   glClear(GL_COLOR_BUFFER_BIT);
-
-			// glCopyTexImage2D(GL_TEXTURE_2D,0,GL_RGB,0,0,texsize,texsize,0);
-			//glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,texsize,texsize);
-			glLineStipple ( 2, 0xAAAA );
 		}
 
 
