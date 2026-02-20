@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=projectM PipeWire Visualization
+GenericName=PipeWire Stream Visualization
+Comment=Visualization of PipeWire audio streams with projectM
+Exec=projectM-pipewire-launcher
+Icon=projectM
+Terminal=false
+Type=Application
+Categories=AudioVideo;Audio;
+Keywords=audio;sound;video;

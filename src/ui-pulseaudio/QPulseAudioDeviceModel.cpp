@@ -53,26 +53,47 @@ QVariant QPulseAudioDeviceModel::data ( const QModelIndex & index, int role = Qt
 		case Qt::DecorationRole:
 		{
 			QIcon icon(":/check.png");
-			return icon;		
+			return icon;
 			break;
-		
+
 		}
-		
+
 		case Qt::ToolTipRole:
 			if (_devicePosition.key() == index.row())
  				return _devices[index.row()] + " (active)";
 			else
 				return _devices[index.row()] + " (inactive)";
-						
-			
+
+
 		case Qt::BackgroundRole:
 			if (_devicePosition.key() == index.row()) {
-                return QColor(Qt::green);
-			} else {
-                return QColor(Qt::white);
-			}						
-		default:			
-			
+                // Use bright green for maximum visibility
+                QColor highlight(0, 255, 0, 180);  // Bright green, mostly opaque
+                return highlight;
+			}
+			// Don't set background for inactive items - let theme handle it
+			return QVariant();
+
+		case Qt::ForegroundRole:
+			if (_devicePosition.key() == index.row()) {
+				// Black text on bright green for maximum contrast and visibility
+				return QColor(Qt::black);
+			}
+			// White text for inactive items
+			return QColor(Qt::white);
+
+		case Qt::FontRole:
+			if (_devicePosition.key() == index.row()) {
+				// Make active device bold
+				QFont boldFont;
+				boldFont.setBold(true);
+				boldFont.setPointSize(10);
+				return boldFont;
+			}
+			return QVariant();
+
+		default:
+
 			return QVariant();
 	}
 }

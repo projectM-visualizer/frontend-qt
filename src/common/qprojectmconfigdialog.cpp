@@ -24,6 +24,7 @@
 #include "qplaylistfiledialog.hpp"
 #include <QSettings>
 #include "qprojectmwidget.hpp"
+#include "configfile.hpp"
 
 QProjectMConfigDialog::QProjectMConfigDialog(const QString& configFile, QProjectMWidget * qprojectMWidget, QWidget * parent, Qt::WindowFlags f) : QDialog(parent, f), _settings("projectM", "qprojectM"), _configFile(configFile), _qprojectMWidget(qprojectMWidget) {
 
@@ -123,38 +124,36 @@ void QProjectMConfigDialog::openTitleFontFileDialog() {
 }
 
 void QProjectMConfigDialog::saveConfig() {
-    // Will only keep data_dir.
-    auto settings = projectm_get_settings(_qprojectMWidget->qprojectM()->instance());
+	// projectM 4.x: Use ConfigFile directly instead of removed settings API
+	try {
+		ConfigFile config(_configFile.toStdString());
 
-    projectm_free_string(settings->preset_url);
+		config.add("Mesh X", _ui.meshSizeWidthSpinBox->value());
+		config.add("Mesh Y", _ui.meshSizeHeightSpinBox->value());
+		config.add("Window Height", _ui.windowHeightSpinBox->value());
+		config.add("Window Width", _ui.windowWidthSpinBox->value());
+		config.add("Preset Path", _ui.startupPlaylistDirectoryLineEdit->text().toStdString());
+		config.add("Texture Size", _ui.textureSizeComboBox->itemData(_ui.textureSizeComboBox->currentIndex()).toInt());
+		config.add("Soft Cut Duration", _ui.smoothPresetDurationSpinBox->value());
+		config.add("Preset Duration", _ui.presetDurationSpinBox->value());
+		config.add("FPS", _ui.maxFPSSpinBox->value());
+		config.add("Aspect Correction", _ui.useAspectCorrectionCheckBox->checkState() == Qt::Checked);
+		config.add("Beat Sensitivity", _ui.beatSensitivitySpinBox->value());
+		config.add("Easter Egg", _ui.easterEggParameterSpinBox->value());
+		config.add("Shuffle Enabled", _ui.shuffleOnStartupCheckBox->checkState() == Qt::Checked);
+		config.add("Soft Cut Ratings Enabled", _ui.softCutRatingsEnabledCheckBox->checkState() == Qt::Checked);
 
-	settings->mesh_x = _ui.meshSizeWidthSpinBox->value();
-	settings->mesh_y = _ui.meshSizeHeightSpinBox->value();
-	settings->window_height = _ui.windowHeightSpinBox->value();
-	settings->window_width = _ui.windowWidthSpinBox->value();
-	settings->preset_url = projectm_alloc_string(_ui.startupPlaylistDirectoryLineEdit->text().length() + 1);
-	strncpy(settings->preset_url, _ui.startupPlaylistDirectoryLineEdit->text().toLocal8Bit().data(), _ui.startupPlaylistDirectoryLineEdit->text().length());
-	settings->texture_size = _ui.textureSizeComboBox->itemData(_ui.textureSizeComboBox->currentIndex()).toInt();
-	settings->soft_cut_duration = _ui.smoothPresetDurationSpinBox->value();
-	settings->preset_duration = _ui.presetDurationSpinBox->value();
-	settings->fps = _ui.maxFPSSpinBox->value();
-	settings->aspect_correction = _ui.useAspectCorrectionCheckBox->checkState() == Qt::Checked;
-	settings->beat_sensitivity = _ui.beatSensitivitySpinBox->value();
-	settings->easter_egg = _ui.easterEggParameterSpinBox->value();
-	settings->shuffle_enabled = _ui.shuffleOnStartupCheckBox->checkState() == Qt::Checked;
-	settings->soft_cut_ratings_enabled = _ui.softCutRatingsEnabledCheckBox->checkState() == Qt::Checked;
-
-	projectm_write_config(_configFile.toLocal8Bit().data(), settings);
-
-    projectm_free_settings(settings);
+		// Write config to file
+		std::ofstream ofs(_configFile.toStdString().c_str());
+		ofs << config;
+	} catch (ConfigFile::file_not_found&) {
+		qWarning() << "Could not write config file:" << _configFile;
+	}
 
 	QSettings qSettings("projectM", "qprojectM");
-
 	qSettings.setValue("FullscreenOnStartup", _ui.fullscreenOnStartupCheckBox->checkState() == Qt::Checked);
 	qSettings.setValue("MenuOnStartup", _ui.menuOnStartupCheckBox->checkState() == Qt::Checked);
-
 	qSettings.setValue("PlaylistFile", _ui.startupPlaylistFileLineEdit->text());
-
 	qSettings.setValue("MouseHideOnTimeout", _ui.mouseHideTimeoutSpinBox->value());
 }
 
@@ -169,34 +168,44 @@ void QProjectMConfigDialog::populateTextureSizeComboBox() {
 }
 
 void QProjectMConfigDialog::loadConfig() {
+	// projectM 4.x: Use ConfigFile directly instead of removed settings API
+	try {
+		ConfigFile config(_configFile.toStdString());
 
-    auto settings = projectm_get_settings(_qprojectMWidget->qprojectM()->instance());
+		_ui.meshSizeWidthSpinBox->setValue(config.read("Mesh X", 32));
+		_ui.meshSizeHeightSpinBox->setValue(config.read("Mesh Y", 24));
+		_ui.startupPlaylistDirectoryLineEdit->setText(QString::fromStdString(config.read<std::string>("Preset Path", "")));
+		_ui.useAspectCorrectionCheckBox->setCheckState(config.read("Aspect Correction", true) ? Qt::Checked : Qt::Unchecked);
+		_ui.maxFPSSpinBox->setValue(config.read("FPS", 60));
+		_ui.beatSensitivitySpinBox->setValue(config.read("Beat Sensitivity", 1.0));
+		_ui.windowHeightSpinBox->setValue(config.read("Window Height", 768));
+		_ui.windowWidthSpinBox->setValue(config.read("Window Width", 1024));
+		_ui.shuffleOnStartupCheckBox->setCheckState(config.read("Shuffle Enabled", false) ? Qt::Checked : Qt::Unchecked);
 
-	_ui.meshSizeWidthSpinBox->setValue(settings->mesh_x);
-	_ui.meshSizeHeightSpinBox->setValue(settings->mesh_y);
+		populateTextureSizeComboBox();
+		int textureSize = config.read("Texture Size", 1024);
+		_ui.textureSizeComboBox->insertItem(0, QString("%1").arg(textureSize), textureSize);
+		_ui.textureSizeComboBox->setCurrentIndex(0);
 
-	_ui.startupPlaylistDirectoryLineEdit->setText(settings->preset_url);
-	_ui.useAspectCorrectionCheckBox->setCheckState(settings->aspect_correction ? Qt::Checked : Qt::Unchecked);
-	_ui.maxFPSSpinBox->setValue(settings->fps);
-	_ui.beatSensitivitySpinBox->setValue(settings->beat_sensitivity);
-	_ui.windowHeightSpinBox->setValue(settings->window_height);
-	_ui.windowWidthSpinBox->setValue(settings->window_width);
-	_ui.shuffleOnStartupCheckBox->setCheckState(settings->shuffle_enabled ? Qt::Checked : Qt::Unchecked);
-	 populateTextureSizeComboBox();
-	_ui.textureSizeComboBox->insertItem(0, QString("%1").arg(settings->texture_size), settings->texture_size);
-	_ui.textureSizeComboBox->setCurrentIndex(0);
-
-	_ui.smoothPresetDurationSpinBox->setValue(settings->soft_cut_duration);
-	_ui.presetDurationSpinBox->setValue(settings->preset_duration);
-	_ui.easterEggParameterSpinBox->setValue(settings->easter_egg);
-	_ui.softCutRatingsEnabledCheckBox->setCheckState(settings->soft_cut_ratings_enabled ? Qt::Checked : Qt::Unchecked);
-
-	projectm_free_settings(settings);
+		_ui.smoothPresetDurationSpinBox->setValue(config.read("Soft Cut Duration", 3));
+		_ui.presetDurationSpinBox->setValue(config.read("Preset Duration", 30));
+		_ui.easterEggParameterSpinBox->setValue(config.read("Easter Egg", 0.0));
+		_ui.softCutRatingsEnabledCheckBox->setCheckState(config.read("Soft Cut Ratings Enabled", false) ? Qt::Checked : Qt::Unchecked);
+	} catch (ConfigFile::file_not_found&) {
+		qWarning() << "Could not read config file:" << _configFile << ", using defaults";
+		// Set default values
+		_ui.meshSizeWidthSpinBox->setValue(32);
+		_ui.meshSizeHeightSpinBox->setValue(24);
+		_ui.windowHeightSpinBox->setValue(768);
+		_ui.windowWidthSpinBox->setValue(1024);
+		_ui.maxFPSSpinBox->setValue(60);
+		_ui.beatSensitivitySpinBox->setValue(1.0);
+		populateTextureSizeComboBox();
+	}
 
 	QSettings qSettings("projectM", "qprojectM");
 	_ui.fullscreenOnStartupCheckBox->setCheckState(qSettings.value("FullscreenOnStartup", false).toBool() ? Qt::Checked : Qt::Unchecked);
 	_ui.menuOnStartupCheckBox->setCheckState(qSettings.value("MenuOnStartup", false).toBool() ? Qt::Checked : Qt::Unchecked);
-	_ui.startupPlaylistFileLineEdit->setText(qSettings.value("PlaylistFile", QString()).toString()	);
+	_ui.startupPlaylistFileLineEdit->setText(qSettings.value("PlaylistFile", QString()).toString());
 	_ui.mouseHideTimeoutSpinBox->setValue(qSettings.value("MouseHideOnTimeout", 5).toInt());
-
 }
