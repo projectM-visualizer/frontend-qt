@@ -258,10 +258,12 @@ void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut )
 		}
 	}
 
+	m_QProjectMWidget->showPresetOverlay(presetName);
+
 	if ( hardCut )
-	    statusBar()->showMessage ( tr(QString( "*** Hard cut to \"%1\" ***" ).arg(presetName).toStdString().c_str()) , 2000 );
+	    statusBar()->showMessage ( tr(QString( "*** Hard cut to \"%1\" ***" ).arg(presetName).toStdString().c_str()) , 5000 );
 	else
-	    statusBar()->showMessage ( tr ( "*** Soft cut to \"%1\" ***" ).arg(presetName).toStdString().c_str(), 2000);
+	    statusBar()->showMessage ( tr ( "*** Soft cut to \"%1\" ***" ).arg(presetName).toStdString().c_str(), 5000);
 
 	if (historyHash.contains(previousFilter) && historyHash[previousFilter] &&
 	    index < static_cast<uint32_t>(historyHash[previousFilter]->size())) {
@@ -331,6 +333,9 @@ void QProjectM_MainWindow::postProjectM_Initialize()
 
 	readConfig(m_QProjectMWidget->configFile());
 
+	// Load preset overlay toggle setting
+	m_QProjectMWidget->setOverlayEnabled(
+		qSettings.value("showPresetOverlay", true).toBool());
 
 	// projectM 4.x: presetSwitchedSignal now only has bool parameter (no index)
 	connect ( m_QProjectMWidget->qprojectM(), SIGNAL ( presetSwitchedSignal ( bool ) ),
@@ -694,6 +699,22 @@ void QProjectM_MainWindow::keyReleaseEvent ( QKeyEvent * e )
 				ui->presetPlayListDockWidget->hide();
 			} else {
 				ui->presetPlayListDockWidget->show();
+			}
+			return;
+
+		case Qt::Key_I:
+			// Toggle preset name overlay
+			if (!(e->modifiers() & Qt::ControlModifier)) {
+				if ( ui->presetSearchBarLineEdit->hasFocus() )
+					return;
+				if (ui->tableView->hasFocus())
+					return;
+			}
+			{
+				bool newState = !m_QProjectMWidget->overlayEnabled();
+				m_QProjectMWidget->setOverlayEnabled(newState);
+				statusBar()->showMessage(
+					newState ? tr("Preset overlay: ON") : tr("Preset overlay: OFF"), 3000);
 			}
 			return;
 
@@ -1201,7 +1222,6 @@ void QProjectM_MainWindow::createToolBars()
 
 void QProjectM_MainWindow::createStatusBar()
 {
-	statusBar()->hide();
 	statusBar()->showMessage ( tr ( "Welcome to projectM!" ) );
 }
 
@@ -1241,6 +1261,7 @@ void QProjectM_MainWindow::writeSettings()
 
 	settings.setValue("playlistDockLocation", dockWidgetArea);
 
+	settings.setValue("showPresetOverlay", m_QProjectMWidget->overlayEnabled());
 }
 
 void QProjectM_MainWindow::loadFile ( const QString &fileName, int rating, int breed, const Nullable<int> & row)
