@@ -31,8 +31,11 @@
 #include <QtDebug>
 #include <QKeyEvent>
 #include <QTimer>
+#include <QElapsedTimer>
 #include <QApplication>
 #include <QSettings>
+#include <QPainter>
+#include <QFontMetrics>
 #include <vector>
 #include <queue>
 #include <cstring>
@@ -45,6 +48,8 @@ class QProjectMWidget : public QOpenGLWidget
 
 	public:
 		static const int MOUSE_VISIBLE_TIMEOUT_MS = 5000;
+		static constexpr qint64 OVERLAY_HOLD_MS = 4000;
+		static constexpr qint64 OVERLAY_FADE_MS = 1500;
 		QProjectMWidget ( const QString& config_file, QWidget * parent, QMutex * audioMutex = 0 )
 				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_renderTimer ( 0 ), m_audioMutex ( audioMutex ),
 				  m_audioBuffer(AUDIO_BUFFER_SIZE, 0.0f), m_audioWritePos(0), m_audioReadPos(0)
@@ -55,9 +60,14 @@ class QProjectMWidget : public QOpenGLWidget
 			format.setProfile(QSurfaceFormat::CoreProfile);
 			format.setDepthBufferSize(24);
 			format.setStencilBufferSize(8);
+			format.setAlphaBufferSize(8);
 			format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 			format.setSwapInterval(1); // Enable vsync
 			setFormat(format);
+
+			// Ensure the widget is opaque for proper compositing
+			setAttribute(Qt::WA_OpaquePaintEvent);
+			setAttribute(Qt::WA_NoSystemBackground);
 
 			m_mouseTimer = new QTimer ( this );
 
@@ -133,6 +143,20 @@ class QProjectMWidget : public QOpenGLWidget
 		void queueGLOperation(std::function<void()> op) {
 			QMutexLocker locker(&m_glOpsMutex);
 			m_pendingGLOps.push(std::move(op));
+		}
+
+		void showPresetOverlay(const QString& name) {
+			m_overlayText = name;
+			m_overlayOpacity = 1.0;
+			m_overlayTimer.start();
+		}
+
+		void setOverlayEnabled(bool enabled) {
+			m_overlayEnabled = enabled;
+		}
+
+		bool overlayEnabled() const {
+			return m_overlayEnabled;
 		}
 
 	protected slots:
@@ -251,6 +275,12 @@ class QProjectMWidget : public QOpenGLWidget
 		// Queue of operations that need the GL context current
 		std::queue<std::function<void()>> m_pendingGLOps;
 		QMutex m_glOpsMutex;
+
+		// Preset name overlay state
+		QString m_overlayText;
+		qreal m_overlayOpacity = 0.0;
+		QElapsedTimer m_overlayTimer;
+		bool m_overlayEnabled = true;
 	protected:
 
 
@@ -321,6 +351,40 @@ class QProjectMWidget : public QOpenGLWidget
 		    // QOpenGLWidget uses its own FBO - render to it
 		    GLuint fbo = defaultFramebufferObject();
 		    projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
+
+		    // Draw preset name overlay with fade-out
+		    if (m_overlayEnabled && m_overlayOpacity > 0.0) {
+		        qint64 elapsed = m_overlayTimer.elapsed();
+		        if (elapsed < OVERLAY_HOLD_MS) {
+		            m_overlayOpacity = 1.0;
+		        } else if (elapsed < OVERLAY_HOLD_MS + OVERLAY_FADE_MS) {
+		            m_overlayOpacity = 1.0 - (elapsed - OVERLAY_HOLD_MS) / (qreal)OVERLAY_FADE_MS;
+		        } else {
+		            m_overlayOpacity = 0.0;
+		        }
+
+		        if (m_overlayOpacity > 0.0) {
+		            QPainter painter(this);
+		            painter.setRenderHint(QPainter::Antialiasing);
+		            QFont font("Sans", 14);
+		            painter.setFont(font);
+		            QFontMetrics fm(font);
+		            QRect textRect = fm.boundingRect(m_overlayText);
+		            int pad = 12;
+		            QRect bg(width()/2 - textRect.width()/2 - pad,
+		                     height() - 60,
+		                     textRect.width() + pad*2,
+		                     textRect.height() + pad);
+		            painter.setOpacity(m_overlayOpacity * 0.7);
+		            painter.setBrush(QColor(0, 0, 0));
+		            painter.setPen(Qt::NoPen);
+		            painter.drawRoundedRect(bg, 8, 8);
+		            painter.setOpacity(m_overlayOpacity);
+		            painter.setPen(Qt::white);
+		            painter.drawText(bg, Qt::AlignCenter, m_overlayText);
+		            painter.end();
+		        }
+		    }
 		}
 
 	private:
