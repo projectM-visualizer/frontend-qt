@@ -338,6 +338,7 @@ class QProjectMWidget : public QOpenGLWidget
 		            constexpr size_t MAX_CHUNK = 2048;
 		            float tempBuffer[MAX_CHUNK];
 		            size_t toRead = std::min(available, MAX_CHUNK);
+		            toRead &= ~size_t(1); // Ensure even count for stereo frame alignment
 		            for (size_t i = 0; i < toRead; ++i) {
 		                float sample = m_audioBuffer[m_audioReadPos];
 		                tempBuffer[i] = std::max(-1.0f, std::min(1.0f, sample));
@@ -348,12 +349,9 @@ class QProjectMWidget : public QOpenGLWidget
 		        }
 		    }
 
-		    // QOpenGLWidget uses its own FBO - render to it
-		    GLuint fbo = defaultFramebufferObject();
-		    projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
-
-		    // Draw preset name overlay with fade-out
-		    if (m_overlayEnabled && m_overlayOpacity > 0.0) {
+		    // Determine if we need the overlay this frame
+		    bool drawOverlay = m_overlayEnabled && m_overlayOpacity > 0.0;
+		    if (drawOverlay) {
 		        qint64 elapsed = m_overlayTimer.elapsed();
 		        if (elapsed < OVERLAY_HOLD_MS) {
 		            m_overlayOpacity = 1.0;
@@ -362,28 +360,43 @@ class QProjectMWidget : public QOpenGLWidget
 		        } else {
 		            m_overlayOpacity = 0.0;
 		        }
+		        drawOverlay = m_overlayOpacity > 0.0;
+		    }
 
-		        if (m_overlayOpacity > 0.0) {
-		            QPainter painter(this);
-		            painter.setRenderHint(QPainter::Antialiasing);
-		            QFont font("Sans", 14);
-		            painter.setFont(font);
-		            QFontMetrics fm(font);
-		            QRect textRect = fm.boundingRect(m_overlayText);
-		            int pad = 12;
-		            QRect bg(width()/2 - textRect.width()/2 - pad,
-		                     height() - 60,
-		                     textRect.width() + pad*2,
-		                     textRect.height() + pad);
-		            painter.setOpacity(m_overlayOpacity * 0.7);
-		            painter.setBrush(QColor(0, 0, 0));
-		            painter.setPen(Qt::NoPen);
-		            painter.drawRoundedRect(bg, 8, 8);
-		            painter.setOpacity(m_overlayOpacity);
-		            painter.setPen(Qt::white);
-		            painter.drawText(bg, Qt::AlignCenter, m_overlayText);
-		            painter.end();
-		        }
+		    if (drawOverlay) {
+		        // Use QPainter to bracket native GL so state is properly
+		        // saved/restored for 2D drawing after projectM renders.
+		        QPainter painter(this);
+		        painter.beginNativePainting();
+
+		        GLuint fbo = defaultFramebufferObject();
+		        projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
+
+		        painter.endNativePainting();
+
+		        // QPainter 2D overlay on top of the GL content
+		        painter.setRenderHint(QPainter::Antialiasing);
+		        QFont font("Sans", 14);
+		        painter.setFont(font);
+		        QFontMetrics fm(font);
+		        QRect textRect = fm.boundingRect(m_overlayText);
+		        int pad = 12;
+		        QRect bg(width()/2 - textRect.width()/2 - pad,
+		                 height() - 60,
+		                 textRect.width() + pad*2,
+		                 textRect.height() + pad);
+		        painter.setOpacity(m_overlayOpacity * 0.7);
+		        painter.setBrush(QColor(0, 0, 0));
+		        painter.setPen(Qt::NoPen);
+		        painter.drawRoundedRect(bg, 8, 8);
+		        painter.setOpacity(m_overlayOpacity);
+		        painter.setPen(Qt::white);
+		        painter.drawText(bg, Qt::AlignCenter, m_overlayText);
+		        painter.end();
+		    } else {
+		        // No overlay needed - just render
+		        GLuint fbo = defaultFramebufferObject();
+		        projectm_opengl_render_frame_fbo(m_projectM->instance(), fbo);
 		    }
 		}
 

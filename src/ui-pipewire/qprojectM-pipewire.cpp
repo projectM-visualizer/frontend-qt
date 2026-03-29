@@ -131,18 +131,17 @@ QString read_config()
         return userConfig;
     }
 
-    // Try $XDG_CONFIG_HOME/projectM/config.inp
-    if (xdg_home) {
-        QString xdgConfig = QString(xdg_home) + "/projectM/config.inp";
+    // Try $XDG_CONFIG_HOME/projectM/config.inp (defaults to ~/.config per XDG spec)
+    QString xdgConfigHome = xdg_home ? QString(xdg_home) : QString(home) + "/.config";
+    {
+        QString xdgConfig = xdgConfigHome + "/projectM/config.inp";
         if (QFileInfo::exists(xdgConfig)) {
             return xdgConfig;
         }
     }
 
     // Try to create user config by copying default
-    QString configDir = xdg_home
-        ? QString(xdg_home) + "/projectM"
-        : QString(home) + "/.projectM";
+    QString configDir = xdgConfigHome + "/projectM";
 
     QDir().mkpath(configDir);
     QString newConfig = configDir + "/config.inp";
