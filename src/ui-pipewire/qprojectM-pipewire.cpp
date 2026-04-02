@@ -57,6 +57,7 @@ int main(int argc, char*argv[])
 {
     // projectM 4.x: Set default OpenGL surface format before creating QApplication
     QSurfaceFormat format;
+    format.setRenderableType(QSurfaceFormat::OpenGL); // Force desktop GL (not GLES) on Wayland/EGL
     format.setVersion(3, 3);
     format.setProfile(QSurfaceFormat::CoreProfile);
     format.setDepthBufferSize(24);

@@ -54,18 +54,9 @@ class QProjectMWidget : public QOpenGLWidget
 				: QOpenGLWidget ( parent ), m_config_file ( config_file ), m_projectM ( 0 ), m_mouseTimer ( 0 ), m_renderTimer ( 0 ), m_audioMutex ( audioMutex ),
 				  m_audioBuffer(AUDIO_BUFFER_SIZE, 0.0f), m_audioWritePos(0), m_audioReadPos(0)
 		{
-			// projectM 4.x: Request OpenGL 3.3 Core Profile
-			QSurfaceFormat format;
-			format.setVersion(3, 3);
-			format.setProfile(QSurfaceFormat::CoreProfile);
-			format.setDepthBufferSize(24);
-			format.setStencilBufferSize(8);
-			format.setAlphaBufferSize(8);
-			format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
-			format.setSwapInterval(1); // Enable vsync
-			setFormat(format);
-
-			// Ensure the widget is opaque for proper compositing
+			// Use the application-wide default format set in main().
+			// Do NOT override with setFormat() here — mismatched formats
+			// cause EGL_BAD_MATCH (error 3009) on NVIDIA Wayland.
 			setAttribute(Qt::WA_OpaquePaintEvent);
 			setAttribute(Qt::WA_NoSystemBackground);
 
