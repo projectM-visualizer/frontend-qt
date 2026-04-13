@@ -261,9 +261,9 @@ void QProjectM_MainWindow::updatePlaylistSelection ( bool hardCut )
 	m_QProjectMWidget->showPresetOverlay(presetName);
 
 	if ( hardCut )
-	    statusBar()->showMessage ( tr(QString( "*** Hard cut to \"%1\" ***" ).arg(presetName).toStdString().c_str()) , 5000 );
+	    statusBar()->showMessage ( QString( "*** Hard cut to \"%1\" ***" ).arg(presetName), 5000 );
 	else
-	    statusBar()->showMessage ( tr ( "*** Soft cut to \"%1\" ***" ).arg(presetName).toStdString().c_str(), 5000);
+	    statusBar()->showMessage ( QString( "*** Soft cut to \"%1\" ***" ).arg(presetName), 5000);
 
 	if (historyHash.contains(previousFilter) && historyHash[previousFilter] &&
 	    index < static_cast<uint32_t>(historyHash[previousFilter]->size())) {
@@ -1175,7 +1175,7 @@ void QProjectM_MainWindow::presetSoftCut() {
 
 void QProjectM_MainWindow::setShuffleEnabled(int state) {
 	if (playlistModel && playlistModel->playlistHandle()) {
-		projectm_playlist_set_shuffle(playlistModel->playlistHandle(), static_cast<bool>(state));
+		projectm_playlist_set_shuffle(playlistModel->playlistHandle(), state == Qt::Checked);
 	}
 }
 
@@ -1401,7 +1401,7 @@ void QProjectM_MainWindow::handleFailedPresetSwitch(const QString & filename, co
 	const QString status = QString("Error switching to preset %1 (%2)")
 	                 .arg(filename).arg(message);
 
-	statusBar()->showMessage ( tr (status.toStdString().c_str() ) );
+	statusBar()->showMessage ( status );
 
 }
 

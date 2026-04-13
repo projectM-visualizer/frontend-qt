@@ -121,7 +121,11 @@ foreach(component ${QT_REQUIRED_COMPONENTS})
 endforeach()
 
 add_subdirectory(src)
-add_subdirectory(tests)
+
+option(BUILD_TESTING "Build test suite" OFF)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
 
 message(STATUS "")
 message(STATUS "projectM Qt Frontend v${PROJECT_VERSION}")

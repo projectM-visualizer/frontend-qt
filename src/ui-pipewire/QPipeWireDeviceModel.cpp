@@ -20,6 +20,7 @@
  */
 
 #include "QPipeWireDeviceModel.hpp"
+#include "QPipeWireThread.hpp"
 #include <QColor>
 #include <algorithm>
 
@@ -39,6 +40,7 @@ void QPipeWireDeviceModel::refreshKeys()
 
 void QPipeWireDeviceModel::updateItemHighlights()
 {
+    m_currentNodeId = QPipeWireThread::currentNodeId();
     beginResetModel();
     refreshKeys();
     endResetModel();

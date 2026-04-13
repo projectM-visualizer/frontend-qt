@@ -119,6 +119,9 @@ class QProjectMWidget : public QOpenGLWidget
 		QMutex* projectMMutex() { return &m_projectMMutex; }
 
 		// Thread-safe audio queueing - called from audio thread
+		// Ring buffer: if the writer laps the reader, oldest samples are silently
+		// overwritten. This is acceptable for visualization — a few lost samples
+		// are imperceptible in FFT/beat detection output.
 		void queueAudio(const float* samples, size_t count) {
 			QMutexLocker locker(&m_audioBufferMutex);
 			for (size_t i = 0; i < count && i < AUDIO_BUFFER_SIZE; ++i) {
