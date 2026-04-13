@@ -56,7 +56,7 @@ void QPipeWireThread::on_state_changed(void *data, enum pw_stream_state old_stat
                                         enum pw_stream_state state, const char *error)
 {
     Q_UNUSED(old_state);
-    AudioData *audioData = static_cast<AudioData *>(data);
+    Q_UNUSED(data);
 
     switch (state) {
     case PW_STREAM_STATE_ERROR:
@@ -104,6 +104,10 @@ void QPipeWireThread::on_registry_global(void *data, uint32_t id,
     Q_UNUSED(version);
     Q_UNUSED(data);
 
+    if (!props) {
+        return;
+    }
+
     // Filter for Node interface only
     if (strcmp(type, PW_TYPE_INTERFACE_Node) != 0) {
         return;
@@ -143,6 +147,12 @@ void QPipeWireThread::on_registry_global_remove(void *data, uint32_t id)
 {
     Q_UNUSED(data);
     s_sourceList.remove(id);
+    s_isSinkMap.remove(id);
+
+    if (s_currentNodeId == id) {
+        s_currentNodeId = PW_ID_ANY;
+        s_currentDeviceName.clear();
+    }
 }
 
 void QPipeWireThread::enumerateDevices()

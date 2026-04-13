@@ -30,6 +30,8 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
+#include <QSurfaceFormat>
+#include <exception>
 
 #define CONFIG_FILE "/share/projectM/config.inp"
 
@@ -104,6 +106,7 @@ int main(int argc, char*argv[])
     int ret = app.exec();
 
     if (pipewireThread != nullptr) {
+        mainWindow->unregisterSettingsAction(&pipeWireAction);
         pipewireThread->writeSettings();
         pipewireThread->cleanup();
         delete pipewireThread;

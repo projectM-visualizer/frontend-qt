@@ -233,8 +233,8 @@ bool QPlaylistModel::readPlaylist(const QString & file)
             presetDir = defaultPresetPath;
         } else {
             // Regular file (XML playlist) - not supported in projectM 4.x
-            qWarning() << "XML playlist files are not supported in projectM 4.x, loading from preset directory instead";
-            presetDir = defaultPresetPath;
+            qWarning() << "XML playlist files are not supported in projectM 4.x";
+            return false;
         }
     }
 

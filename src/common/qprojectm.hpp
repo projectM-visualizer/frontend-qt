@@ -26,6 +26,8 @@
 
 #include <QObject>
 #include <QString>
+#include <QtDebug>
+#include <stdexcept>
 
 class QProjectM : public QObject
 {

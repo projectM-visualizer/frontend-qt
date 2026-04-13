@@ -26,6 +26,7 @@
 #include <GL/gl.h>
 #include <GL/glext.h>
 
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -33,6 +34,7 @@
 #include <vector>
 #include <string>
 #include <csignal>
+#include <unistd.h>
 
 static const int WIDTH  = 512;
 static const int HEIGHT = 512;
