@@ -46,7 +46,7 @@ class QPlaylistTableView : public QTableView
  public slots:
 	 void dropEvent ( QDropEvent * event )  {
 		 
-		 QModelIndex dropIndex = this->indexAt(event->pos());
+		 QModelIndex dropIndex = this->indexAt(event->position().toPoint());
 		 
 		 if (!dropIndex.isValid()) {
 			event->ignore();

@@ -151,7 +151,7 @@ void QProjectM_MainWindow::popupPlaylistContextMenu(QMouseEvent * mouseEvent,con
 
 		if (mouseEvent->button() == Qt::RightButton) {
 
-			QPoint point = mouseEvent->globalPos();
+			QPoint point = mouseEvent->globalPosition().toPoint();
 			playlistContextMenu->popup(point, ui->actionEdit_this_preset);
 			mouseEvent->accept();
 		} else {
