@@ -86,11 +86,13 @@ class QProjectMWidget : public QOpenGLWidget
 
 		void resizeGL ( int w, int h ) override
 		{
-			// Setup viewport, projection etc
-			setup_opengl ( w,h );
+			// Scale logical pixels to physical pixels for HiDPI/Wayland
+			int pw = static_cast<int>(w * devicePixelRatio());
+			int ph = static_cast<int>(h * devicePixelRatio());
+			setup_opengl ( pw, ph );
 			// Queue resize for next paintGL to avoid race conditions
-			m_pendingWidth = w;
-			m_pendingHeight = h;
+			m_pendingWidth = pw;
+			m_pendingHeight = ph;
 			m_resizePending = true;
 		}
 
@@ -288,6 +290,12 @@ class QProjectMWidget : public QOpenGLWidget
 		{
 		        if (m_projectM == 0) {
 			    this->m_projectM = new QProjectM ( m_config_file );
+			    // Set initial window size (physical pixels) before first render
+			    int pw = static_cast<int>(width() * devicePixelRatio());
+			    int ph = static_cast<int>(height() * devicePixelRatio());
+			    projectm_set_window_size(m_projectM->instance(),
+			                             static_cast<size_t>(pw),
+			                             static_cast<size_t>(ph));
 			    projectM_Initialized ( m_projectM );
 			}
 		}
