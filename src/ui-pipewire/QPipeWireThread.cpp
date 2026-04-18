@@ -358,12 +358,18 @@ void QPipeWireThread::cleanup()
         s_data.loop = nullptr;
     }
 
-    pw_deinit();
+    // Do not call pw_deinit() here — PipeWire does not support
+    // re-initialization after deinit within the same process.
 }
+
+static bool s_pwInitialized = false;
 
 void QPipeWireThread::run()
 {
-    pw_init(&argc, &argv);
+    if (!s_pwInitialized) {
+        pw_init(&argc, &argv);
+        s_pwInitialized = true;
+    }
 
     s_data.loop = pw_main_loop_new(nullptr);
     s_data.mainWindow = m_qprojectM_MainWindow;
