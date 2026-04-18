@@ -103,9 +103,21 @@ QPulseAudioThread::SourceContainer::const_iterator QPulseAudioThread::readSettin
 	return s_sourceList.end();
 }
 
+void QPulseAudioThread::writeSettings()
+{
+	QSettings settings("projectM", "qprojectM-pulseaudio");
+
+	if (s_sourcePosition != s_sourceList.end()) {
+		settings.setValue("tryFirstAvailablePlaybackMonitor", false);
+		settings.setValue("pulseAudioDeviceName", *s_sourcePosition);
+	} else {
+		settings.setValue("tryFirstAvailablePlaybackMonitor", true);
+	}
+}
+
 void QPulseAudioThread::cleanup()
 {
-	
+
 	pa_threaded_mainloop_stop ( mainloop );
 
 	if ( stream )
