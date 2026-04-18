@@ -18,11 +18,14 @@ public:
         QString displayName;
     };
 
-    explicit QAudioBackend(QObject *parent = nullptr) : QObject(parent) {}
+    explicit QAudioBackend(QObject *parent = nullptr) : QObject(parent), m_active(false) {}
     virtual ~QAudioBackend() {}
 
     virtual bool start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex) = 0;
     virtual void stop() = 0;
+
+    bool isActive() const { return m_active; }
+    void setActive(bool active) { m_active = active; }
 
     virtual QString backendName() const = 0;
 
@@ -32,6 +35,9 @@ public:
 
     virtual void writeSettings() = 0;
     virtual void readSettings() = 0;
+
+protected:
+    bool m_active;
 
 public slots:
     virtual void selectDevice(const QString &deviceId) = 0;

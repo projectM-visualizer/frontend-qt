@@ -54,6 +54,7 @@ bool QPipeWireBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMute
             this, &QPipeWireBackend::activeDeviceChanged);
 
     m_thread->start();
+    m_active = true;
     return true;
 }
 

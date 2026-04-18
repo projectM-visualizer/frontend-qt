@@ -51,7 +51,7 @@ bool QJackBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)
 
     // Open a client connection to the JACK server
     jack_status_t status;
-    m_client = jack_client_open("projectM", JackNullOption, &status, nullptr);
+    m_client = jack_client_open("projectM", JackNoStartServer, &status, nullptr);
     if (!m_client) {
         qCritical() << "jack_client_open() failed, status =" << status;
         emit errorOccurred(QStringLiteral("Failed to connect to JACK server"));

@@ -213,8 +213,9 @@ int main(int argc, char *argv[])
             return;
         }
 
-        // Stop the old backend (but keep it cached)
+        // Deactivate the old backend (keep it cached but stop audio delivery)
         if (backend) {
+            backend->setActive(false);
             backend->stop();
         }
 
@@ -226,6 +227,7 @@ int main(int argc, char *argv[])
         }
 
         backend = newBackend;
+        backend->setActive(true);
         activeBackendId = newId;
 
         devChooser = new QAudioDeviceChooser(backend, mainWindow);
