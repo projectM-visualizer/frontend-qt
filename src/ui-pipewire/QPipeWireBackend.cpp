@@ -42,13 +42,11 @@ QPipeWireBackend::~QPipeWireBackend()
 bool QPipeWireBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)
 {
     if (m_thread) {
-        return false; // already running
+        return true; // already running, reuse
     }
 
     m_mainWindow = mainWindow;
 
-    // QPipeWireThread requires argc/argv; pass 0/nullptr since the unified main
-    // handles argument parsing before the backend is created.
     QPipeWireThread::setAudioMutex(audioMutex);
     m_thread = new QPipeWireThread(m_argc, m_argv, mainWindow);
 
@@ -61,14 +59,9 @@ bool QPipeWireBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMute
 
 void QPipeWireBackend::stop()
 {
-    if (!m_thread) {
-        return;
-    }
-
-    m_thread->writeSettings();
-    m_thread->cleanup();
-    delete m_thread;
-    m_thread = nullptr;
+    // Keep the thread alive — PipeWire cannot be re-initialized after
+    // cleanup within the same process. The thread stays running but
+    // audio just isn't consumed while another backend is active.
 }
 
 QString QPipeWireBackend::backendName() const

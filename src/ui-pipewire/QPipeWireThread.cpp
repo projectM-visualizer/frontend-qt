@@ -371,6 +371,13 @@ void QPipeWireThread::run()
         s_pwInitialized = true;
     }
 
+    // Reset all static state for clean re-initialization
+    memset(&s_data, 0, sizeof(s_data));
+    s_sourceList.clear();
+    s_isSinkMap.clear();
+    s_currentNodeId = PW_ID_ANY;
+    s_currentDeviceName.clear();
+
     s_data.loop = pw_main_loop_new(nullptr);
     s_data.mainWindow = m_qprojectM_MainWindow;
     s_data.audioMutex = s_audioMutex;

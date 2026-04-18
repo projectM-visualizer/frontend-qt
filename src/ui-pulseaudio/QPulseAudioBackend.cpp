@@ -45,7 +45,7 @@ bool QPulseAudioBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMu
     Q_UNUSED(audioMutex);
 
     if (m_thread) {
-        return false; // already running
+        return true; // already running, reuse
     }
 
     m_mainWindow = mainWindow;
@@ -63,14 +63,9 @@ bool QPulseAudioBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMu
 
 void QPulseAudioBackend::stop()
 {
-    if (!m_thread) {
-        return;
-    }
-
-    m_thread->writeSettings();
-    m_thread->cleanup();
-    delete m_thread;
-    m_thread = nullptr;
+    // Keep the thread alive — PulseAudio has similar re-init issues.
+    // The thread stays running but audio isn't consumed while another
+    // backend is active.
 }
 
 QString QPulseAudioBackend::backendName() const

@@ -151,10 +151,11 @@ int main(int argc, char *argv[])
     }
 
     // State
+    QHash<QString, QAudioBackend*> backendCache;
     QAudioBackend *backend = nullptr;
     QAudioDeviceChooser *devChooser = nullptr;
     QAction *devAction = nullptr;
-    QString activeBackendId = requestedBackend;
+    QString activeBackendId;
 
     QString config_file = readProjectMConfig(PROJECTM_PREFIX);
     QMutex audioMutex;
@@ -172,23 +173,27 @@ int main(int argc, char *argv[])
 
     QList<BackendEntry> backends = availableBackends();
 
+    // Get or create a backend, caching instances to avoid teardown/re-init issues
+    auto getOrCreateBackend = [&](const QString &id) -> QAudioBackend* {
+        if (backendCache.contains(id)) {
+            return backendCache.value(id);
+        }
+        QAudioBackend *b = createBackend(id);
+        if (b) {
+            backendCache.insert(id, b);
+        }
+        return b;
+    };
+
     // Function to switch backends
     auto switchBackend = [&](const QString &newId) {
-        if (backend && activeBackendId == newId) {
+        if (activeBackendId == newId) {
             return;
         }
 
-        // Try to create and start the new backend before tearing down the old one
-        QAudioBackend *newBackend = createBackend(newId);
+        QAudioBackend *newBackend = getOrCreateBackend(newId);
         if (!newBackend) {
             qCritical() << "Failed to create backend:" << newId;
-            return;
-        }
-
-        if (!newBackend->start(mainWindow, &audioMutex)) {
-            qWarning() << "Backend" << newId << "failed to start, keeping current backend";
-            delete newBackend;
-            // Re-check the active radio button
             for (QAction *a : backendGroup->actions()) {
                 if (a->data().toString() == activeBackendId) {
                     a->setChecked(true);
@@ -197,15 +202,27 @@ int main(int argc, char *argv[])
             return;
         }
 
-        // New backend started successfully — tear down the old one
-        if (backend) {
-            backend->writeSettings();
-            backend->stop();
-            delete backend;
+        // Start the new backend (may already be started if cached and still running)
+        if (!newBackend->start(mainWindow, &audioMutex)) {
+            qWarning() << "Backend" << newId << "failed to start, keeping current backend";
+            for (QAction *a : backendGroup->actions()) {
+                if (a->data().toString() == activeBackendId) {
+                    a->setChecked(true);
+                }
+            }
+            return;
         }
+
+        // Stop the old backend (but keep it cached)
+        if (backend) {
+            backend->stop();
+        }
+
+        // Tear down old device chooser
         if (devChooser) {
             devChooser->writeSettings();
             delete devChooser;
+            devChooser = nullptr;
         }
 
         backend = newBackend;
@@ -259,10 +276,11 @@ int main(int argc, char *argv[])
         devChooser->writeSettings();
         delete devChooser;
     }
-    if (backend) {
-        backend->writeSettings();
-        backend->stop();
-        delete backend;
+    // Stop and delete all cached backends
+    for (QAudioBackend *b : backendCache.values()) {
+        b->writeSettings();
+        b->stop();
+        delete b;
     }
 
     return ret;
