@@ -178,37 +178,43 @@ int main(int argc, char *argv[])
             return;
         }
 
-        // Stop old backend
-        if (backend) {
-            backend->writeSettings();
-            backend->stop();
-            delete backend;
-            backend = nullptr;
-        }
-
-        // Tear down old device chooser
-        if (devChooser) {
-            devChooser->writeSettings();
-            delete devChooser;
-            devChooser = nullptr;
-        }
-
-        // Create and start new backend
-        backend = createBackend(newId);
-        if (!backend) {
+        // Try to create and start the new backend before tearing down the old one
+        QAudioBackend *newBackend = createBackend(newId);
+        if (!newBackend) {
             qCritical() << "Failed to create backend:" << newId;
             return;
         }
 
-        activeBackendId = newId;
-        backend->start(mainWindow, &audioMutex);
+        if (!newBackend->start(mainWindow, &audioMutex)) {
+            qWarning() << "Backend" << newId << "failed to start, keeping current backend";
+            delete newBackend;
+            // Re-check the active radio button
+            for (QAction *a : backendGroup->actions()) {
+                if (a->data().toString() == activeBackendId) {
+                    a->setChecked(true);
+                }
+            }
+            return;
+        }
 
-        // Create new device chooser for the new backend
+        // New backend started successfully — tear down the old one
+        if (backend) {
+            backend->writeSettings();
+            backend->stop();
+            delete backend;
+        }
+        if (devChooser) {
+            devChooser->writeSettings();
+            delete devChooser;
+        }
+
+        backend = newBackend;
+        activeBackendId = newId;
+
         devChooser = new QAudioDeviceChooser(backend, mainWindow);
         QObject::disconnect(devAction, nullptr, nullptr, nullptr);
         QObject::connect(devAction, SIGNAL(triggered()), devChooser, SLOT(open()));
 
-        // Persist choice
         QSettings settings("projectM", "qprojectM");
         settings.setValue("audioBackend", newId);
 
