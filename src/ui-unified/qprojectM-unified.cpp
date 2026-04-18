@@ -26,6 +26,9 @@
 
 #include <QApplication>
 #include <QAction>
+#include <QActionGroup>
+#include <QMenu>
+#include <QMenuBar>
 #include <QMutex>
 #include <QSettings>
 #include <QSurfaceFormat>
@@ -64,8 +67,6 @@ public:
 
 static QString autoDetectBackend()
 {
-    // Prefer PipeWire > PulseAudio > JACK based on what was compiled in.
-    // Actual server availability is checked when the backend starts.
 #ifdef ENABLE_PIPEWIRE
     return "pipewire";
 #elif defined(ENABLE_PULSEAUDIO)
@@ -91,9 +92,29 @@ static QAudioBackend* createBackend(const QString &name)
     return nullptr;
 }
 
+struct BackendEntry {
+    QString id;
+    QString label;
+};
+
+static QList<BackendEntry> availableBackends()
+{
+    QList<BackendEntry> list;
+    BackendEntry e;
+#ifdef ENABLE_PIPEWIRE
+    e.id = "pipewire"; e.label = "PipeWire"; list.append(e);
+#endif
+#ifdef ENABLE_PULSEAUDIO
+    e.id = "pulseaudio"; e.label = "PulseAudio"; list.append(e);
+#endif
+#ifdef ENABLE_JACK
+    e.id = "jack"; e.label = "JACK"; list.append(e);
+#endif
+    return list;
+}
+
 int main(int argc, char *argv[])
 {
-    // Set default OpenGL surface format before creating QApplication
     QSurfaceFormat format;
     format.setRenderableType(QSurfaceFormat::OpenGL);
     format.setVersion(3, 3);
@@ -106,7 +127,7 @@ int main(int argc, char *argv[])
 
     ProjectMApplication app(argc, argv);
 
-    // 1. Parse --backend from command line
+    // Parse --backend from command line
     QString requestedBackend;
     for (int i = 1; i < argc; ++i) {
         if (QString(argv[i]) == "--backend" && i + 1 < argc) {
@@ -115,13 +136,11 @@ int main(int argc, char *argv[])
         }
     }
 
-    // 2. Check QSettings
     if (requestedBackend.isEmpty()) {
         QSettings settings("projectM", "qprojectM");
         requestedBackend = settings.value("audioBackend").toString().toLower();
     }
 
-    // 3. Auto-detect
     if (requestedBackend.isEmpty()) {
         requestedBackend = autoDetectBackend();
     }
@@ -131,27 +150,86 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    QAudioBackend *backend = createBackend(requestedBackend);
-    if (!backend) {
-        qCritical() << "Unknown or disabled audio backend:" << requestedBackend;
-        return 1;
-    }
-
-    qDebug() << "Using audio backend:" << backend->backendName();
-
-    // Save the chosen backend for next launch
-    {
-        QSettings settings("projectM", "qprojectM");
-        settings.setValue("audioBackend", requestedBackend);
-    }
+    // State
+    QAudioBackend *backend = nullptr;
+    QAudioDeviceChooser *devChooser = nullptr;
+    QAction *devAction = nullptr;
+    QString activeBackendId = requestedBackend;
 
     QString config_file = readProjectMConfig(PROJECTM_PREFIX);
     QMutex audioMutex;
-
     QProjectM_MainWindow *mainWindow = new QProjectM_MainWindow(config_file, &audioMutex);
 
-    QAction audioAction(backend->backendName() + " audio settings...", mainWindow);
-    mainWindow->registerSettingsAction(&audioAction);
+    // -- Build the audio backend menu --
+    QMenu *audioMenu = new QMenu("Audio Backend", mainWindow);
+    QActionGroup *backendGroup = new QActionGroup(mainWindow);
+    backendGroup->setExclusive(true);
+
+    // Device settings action (registered with main window's settings menu)
+    devAction = new QAction("Audio device settings...", mainWindow);
+    mainWindow->registerSettingsAction(devAction);
+
+    QList<BackendEntry> backends = availableBackends();
+
+    // Function to switch backends
+    auto switchBackend = [&](const QString &newId) {
+        if (backend && activeBackendId == newId) {
+            return;
+        }
+
+        // Stop old backend
+        if (backend) {
+            backend->writeSettings();
+            backend->stop();
+            delete backend;
+            backend = nullptr;
+        }
+
+        // Tear down old device chooser
+        if (devChooser) {
+            devChooser->writeSettings();
+            delete devChooser;
+            devChooser = nullptr;
+        }
+
+        // Create and start new backend
+        backend = createBackend(newId);
+        if (!backend) {
+            qCritical() << "Failed to create backend:" << newId;
+            return;
+        }
+
+        activeBackendId = newId;
+        backend->start(mainWindow, &audioMutex);
+
+        // Create new device chooser for the new backend
+        devChooser = new QAudioDeviceChooser(backend, mainWindow);
+        QObject::disconnect(devAction, nullptr, nullptr, nullptr);
+        QObject::connect(devAction, SIGNAL(triggered()), devChooser, SLOT(open()));
+
+        // Persist choice
+        QSettings settings("projectM", "qprojectM");
+        settings.setValue("audioBackend", newId);
+
+        qDebug() << "Switched to audio backend:" << backend->backendName();
+    };
+
+    // Create backend selector actions
+    for (const BackendEntry &entry : backends) {
+        QAction *action = new QAction(entry.label, backendGroup);
+        action->setCheckable(true);
+        action->setData(entry.id);
+        if (entry.id == requestedBackend) {
+            action->setChecked(true);
+        }
+        QObject::connect(action, &QAction::triggered, [&switchBackend, entry]() {
+            switchBackend(entry.id);
+        });
+        audioMenu->addAction(action);
+    }
+
+    // Add menu to menu bar
+    mainWindow->menuBar()->addMenu(audioMenu);
 
     mainWindow->setAttribute(Qt::WA_ShowWithoutActivating, false);
     mainWindow->setWindowState(Qt::WindowNoState);
@@ -160,18 +238,22 @@ int main(int argc, char *argv[])
     mainWindow->activateWindow();
     app.processEvents();
 
-    backend->start(mainWindow, &audioMutex);
-
-    QAudioDeviceChooser devChooser(backend, mainWindow);
-    QObject::connect(&audioAction, SIGNAL(triggered()), &devChooser, SLOT(open()));
+    // Start initial backend
+    switchBackend(requestedBackend);
 
     int ret = app.exec();
 
-    mainWindow->unregisterSettingsAction(&audioAction);
-    devChooser.writeSettings();
-    backend->writeSettings();
-    backend->stop();
-    delete backend;
+    // Cleanup
+    mainWindow->unregisterSettingsAction(devAction);
+    if (devChooser) {
+        devChooser->writeSettings();
+        delete devChooser;
+    }
+    if (backend) {
+        backend->writeSettings();
+        backend->stop();
+        delete backend;
+    }
 
     return ret;
 }
