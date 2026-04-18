@@ -160,12 +160,13 @@ int main(int argc, char *argv[])
     QMutex audioMutex;
     QProjectM_MainWindow *mainWindow = new QProjectM_MainWindow(config_file, &audioMutex);
 
-    // -- Build the audio backend menu --
+    // -- Add backend submenu under Settings --
+    QMenu *settingsMenu = mainWindow->findChild<QMenu*>("menuSettings");
     QMenu *audioMenu = new QMenu("Audio Backend", mainWindow);
     QActionGroup *backendGroup = new QActionGroup(mainWindow);
     backendGroup->setExclusive(true);
 
-    // Device settings action (registered with main window's settings menu)
+    // Device settings action
     devAction = new QAction("Audio device settings...", mainWindow);
     mainWindow->registerSettingsAction(devAction);
 
@@ -228,8 +229,11 @@ int main(int argc, char *argv[])
         audioMenu->addAction(action);
     }
 
-    // Add menu to menu bar
-    mainWindow->menuBar()->addMenu(audioMenu);
+    // Add backend submenu to Settings menu
+    if (settingsMenu) {
+        settingsMenu->addSeparator();
+        settingsMenu->addMenu(audioMenu);
+    }
 
     mainWindow->setAttribute(Qt::WA_ShowWithoutActivating, false);
     mainWindow->setWindowState(Qt::WindowNoState);
