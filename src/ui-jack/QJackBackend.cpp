@@ -23,6 +23,9 @@
 #include "qprojectm_mainwindow.hpp"
 
 #include <QtDebug>
+#include <QThread>
+#include <QEventLoop>
+#include <QTimer>
 #include <cstdlib>
 #include <cstdio>
 
@@ -49,9 +52,28 @@ bool QJackBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)
 
     m_mainWindow = mainWindow;
 
-    // Open a client connection to the JACK server
-    jack_status_t status;
-    m_client = jack_client_open("projectM", JackNoStartServer, &status, nullptr);
+    // Open a client connection to the JACK server.
+    // Run in a worker thread with a timeout — jack_client_open can block
+    // for several seconds even with JackNoStartServer if the server socket
+    // exists but is unresponsive.
+    jack_client_t *result = nullptr;
+    jack_status_t status = JackFailure;
+
+    QThread *worker = QThread::create([&result, &status]() {
+        result = jack_client_open("projectM", JackNoStartServer, &status, nullptr);
+    });
+    worker->start();
+    if (!worker->wait(3000)) { // 3 second timeout
+        qWarning() << "JACK connection timed out";
+        worker->terminate();
+        worker->wait(1000);
+        delete worker;
+        emit errorOccurred(QStringLiteral("JACK server connection timed out"));
+        return false;
+    }
+    delete worker;
+
+    m_client = result;
     if (!m_client) {
         qCritical() << "jack_client_open() failed, status =" << status;
         emit errorOccurred(QStringLiteral("Failed to connect to JACK server"));
