@@ -26,14 +26,17 @@
 #include <jack/jack.h>
 
 #include <QApplication>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
+#include <QtDebug>
 
 #include <cstdlib>
 #include <string>
 #include <iostream>
 #include <cstdio>
-#include <sys/stat.h> // for mkdir
 
-#define QPROJECTM_JACK_CONFIG_FILE "/config.inp"
+#define CONFIG_FILE "/share/projectM/config.inp"
 
 QString read_config();
 
@@ -82,88 +85,50 @@ class ProjectMApplication : public QApplication {
 
 QString read_config()
 {
+    // Build default config path from install prefix
+    QString defaultConfig = QString(PROJECTM_PREFIX) + CONFIG_FILE;
 
-   char num[512];
-   FILE *f_in;
-   FILE *f_out;
+    const char* home = getenv("HOME");
+    const char* xdg_home = getenv("XDG_CONFIG_HOME");
 
-   char * home;
-   char projectM_home[1024];
-   char projectM_config[1024];
+    if (!home) {
+        return defaultConfig;
+    }
 
-   int len;
-   strcpy(projectM_config, PROJECTM_PREFIX);
-   strcpy(projectM_config + (len = strlen(PROJECTM_PREFIX)), "/");
+    // Try ~/.projectM/config.inp
+    QString userConfig = QString(home) + "/.projectM/config.inp";
+    if (QFileInfo::exists(userConfig)) {
+        return userConfig;
+    }
 
-   strcpy(projectM_config+(len += strlen("/")), RESOURCE_PREFIX);
-   strcpy(projectM_config+(len += strlen(RESOURCE_PREFIX)), QPROJECTM_JACK_CONFIG_FILE);
-   projectM_config[len += strlen(QPROJECTM_JACK_CONFIG_FILE)]='\0';
+    // Try $XDG_CONFIG_HOME/projectM/config.inp (defaults to ~/.config per XDG spec)
+    QString xdgConfigHome = xdg_home ? QString(xdg_home) : QString(home) + "/.config";
+    {
+        QString xdgConfig = xdgConfigHome + "/projectM/config.inp";
+        if (QFileInfo::exists(xdgConfig)) {
+            return xdgConfig;
+        }
+    }
 
-   printf("dir:%s \n",projectM_config);
-   home=getenv("HOME");
-   strcpy(projectM_home, home);
-   strcpy(projectM_home+strlen(home), "/.projectM/config.inp");
-   projectM_home[strlen(home)+strlen("/.projectM/config.inp")]='\0';
+    // Try to create user config by copying default
+    QString configDir = xdgConfigHome + "/projectM";
+    QDir().mkpath(configDir);
+    QString newConfig = configDir + "/config.inp";
 
+    if (QFile::exists(defaultConfig)) {
+        if (QFile::copy(defaultConfig, newConfig)) {
+            return newConfig;
+        }
+    }
 
- if ((f_in = fopen(projectM_home, "r")) != 0)
-   {
-     printf("reading ~/.projectM/config.inp \n");
-     fclose(f_in);
-     return projectM_home;
-   }
- else
-   {
-     printf("trying to create ~/.projectM/config.inp \n");
+    // Fall back to default config
+    if (QFile::exists(defaultConfig)) {
+        return defaultConfig;
+    }
 
-     strcpy(projectM_home, home);
-     strcpy(projectM_home+strlen(home), "/.projectM");
-     projectM_home[strlen(home)+strlen("/.projectM")]='\0';
-     mkdir(projectM_home,0755);
-
-     strcpy(projectM_home, home);
-     strcpy(projectM_home+strlen(home), "/.projectM/config.inp");
-     projectM_home[strlen(home)+strlen("/.projectM/config.inp")]='\0';
-
-     if((f_out = fopen(projectM_home,"w"))!=0)
-       {
-
-	 if ((f_in = fopen(projectM_config, "r")) != 0)
-	   {
-
-	     while(fgets(num,80,f_in)!=NULL)
-	       {
-		 fputs(num,f_out);
-	       }
-	     fclose(f_in);
-	     fclose(f_out);
-
-
-	     if ((f_in = fopen(projectM_home, "r")) != 0)
-	       {
-		 printf("created ~/.projectM/config.inp successfully\n");
-		 fclose(f_in);
-		 return projectM_home;
-	       }
-	     else{printf("This shouldn't happen, using implementation defaults\n");abort();}
-	   }
-	 else{printf("Cannot find projectM default config, using implementation defaults\n");abort();}
-       }
-     else
-       {
-	 printf("Cannot create ~/.projectM/config.inp, using default config file\n");
-	 if ((f_in = fopen(projectM_config, "r")) != 0)
-	   { printf("Successfully opened default config file\n");
-	     fclose(f_in);
-	     return projectM_config;}
-	 else{ printf("Using implementation defaults, your system is really messed up, I'm surprised we even got this far\n");  abort();}
-
-       }
-
-   }
-
-
- abort();
+    // No config found — projectM will use built-in defaults
+    qWarning() << "No projectM config file found, using built-in defaults";
+    return QString();
 }
 
 int

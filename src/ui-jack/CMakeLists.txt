@@ -11,7 +11,6 @@ add_executable(projectM-Qt-JACK
 target_compile_definitions(projectM-Qt-JACK
         PRIVATE
         PROJECTM_PREFIX="${CMAKE_INSTALL_PREFIX}"
-        RESOURCE_PREFIX="share/projectM"
         )
 
 target_link_libraries(projectM-Qt-JACK
