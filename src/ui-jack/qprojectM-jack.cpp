@@ -36,7 +36,7 @@
 #include <iostream>
 #include <cstdio>
 
-#define CONFIG_FILE "/share/projectM/config.inp"
+// CONFIG_FILE is defined in qprojectm_mainwindow.hpp (included above)
 
 QString read_config();
 
