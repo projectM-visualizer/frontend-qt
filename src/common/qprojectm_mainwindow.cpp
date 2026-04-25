@@ -115,6 +115,13 @@ m_QPlaylistFileDialog( new QPlaylistFileDialog ( this ))
 	setCentralWidget ( m_QProjectMWidget );
 	m_QProjectMWidget->installEventFilter(this);
 
+	// When the playlist dock is floating on a separate screen, hover events
+	// would otherwise propagate status tips to the main window's status bar
+	// (issue #3). Filter them at the dock so the info doesn't appear on the
+	// wrong screen.
+	ui->presetPlayListDockWidget->installEventFilter(this);
+	ui->tableView->installEventFilter(this);
+
 	m_timer->start ( 0 );
 
 	createActions();
@@ -1407,7 +1414,14 @@ void QProjectM_MainWindow::handleFailedPresetSwitch(const QString & filename, co
 
 bool QProjectM_MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
-    Q_UNUSED(obj);
+	// Suppress status tips originating from the playlist when the dock is
+	// floating on a different screen, so they don't appear on the main
+	// window's status bar (issue #3).
+	if (event->type() == QEvent::StatusTip
+	    && ui->presetPlayListDockWidget->isFloating()
+	    && (obj == ui->presetPlayListDockWidget || obj == ui->tableView)) {
+		return true;
+	}
 
 	if (event->type() == QEvent::MouseButtonDblClick && ((QMouseEvent*)event)->button() == Qt::LeftButton) {
 		this->setWindowState ( this->windowState() ^ Qt::WindowFullScreen );
