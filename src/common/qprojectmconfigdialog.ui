@@ -296,6 +296,9 @@ p, li { white-space: pre-wrap; }
       <property name="minimum">
        <number>0</number>
       </property>
+      <property name="maximum">
+       <number>999</number>
+      </property>
      </widget>
     </item>
     <item row="6" column="0" colspan="2">
