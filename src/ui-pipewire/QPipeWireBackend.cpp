@@ -36,7 +36,16 @@ QPipeWireBackend::QPipeWireBackend(QObject *parent)
 
 QPipeWireBackend::~QPipeWireBackend()
 {
-    stop();
+    // Real teardown happens here at process exit, not on stop() — stop()
+    // only deactivates audio because PipeWire can't be safely re-initialized
+    // within the same process.
+    if (m_thread) {
+        QPipeWireThread::setAudioActive(false);
+        m_thread->writeSettings();
+        m_thread->cleanup(); // quits main loop, waits for thread, destroys PW resources
+        delete m_thread;
+        m_thread = nullptr;
+    }
 }
 
 bool QPipeWireBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)

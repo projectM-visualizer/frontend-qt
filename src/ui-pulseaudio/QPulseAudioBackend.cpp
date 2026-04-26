@@ -37,7 +37,17 @@ QPulseAudioBackend::QPulseAudioBackend(QObject *parent)
 
 QPulseAudioBackend::~QPulseAudioBackend()
 {
-    stop();
+    // Real teardown happens here at process exit, not on stop() — stop()
+    // only deactivates audio because PulseAudio re-init within the same
+    // process is unreliable.
+    if (m_thread) {
+        QPulseAudioThread::setAudioActive(false);
+        m_thread->writeSettings();
+        m_thread->cleanup();      // signals PA mainloop to stop
+        m_thread->wait(3000);      // wait up to 3s for run() to exit
+        delete m_thread;
+        m_thread = nullptr;
+    }
 }
 
 bool QPulseAudioBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)
