@@ -55,14 +55,18 @@ bool QPipeWireBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMute
 
     m_thread->start();
     m_active = true;
+    QPipeWireThread::setAudioActive(true);
     return true;
 }
 
 void QPipeWireBackend::stop()
 {
     // Keep the thread alive — PipeWire cannot be re-initialized after
-    // cleanup within the same process. The thread stays running but
-    // audio just isn't consumed while another backend is active.
+    // cleanup within the same process. Pause audio delivery instead so
+    // samples aren't double-fed through addPCM when another backend
+    // becomes active.
+    m_active = false;
+    QPipeWireThread::setAudioActive(false);
 }
 
 QString QPipeWireBackend::backendName() const

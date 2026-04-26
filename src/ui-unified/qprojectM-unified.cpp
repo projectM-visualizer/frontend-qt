@@ -150,6 +150,27 @@ int main(int argc, char *argv[])
         return 1;
     }
 
+    // Validate against compiled-in backends. Unknown values from CLI or
+    // QSettings shouldn't leave the app running with no audio.
+    {
+        bool known = false;
+        for (const BackendEntry &entry : availableBackends()) {
+            if (entry.id == requestedBackend) {
+                known = true;
+                break;
+            }
+        }
+        if (!known) {
+            qWarning() << "Unknown or disabled audio backend:" << requestedBackend
+                       << "— falling back to auto-detect";
+            requestedBackend = autoDetectBackend();
+            if (requestedBackend.isEmpty()) {
+                qCritical() << "No audio backend available.";
+                return 1;
+            }
+        }
+    }
+
     // State
     QHash<QString, QAudioBackend*> backendCache;
     QAudioBackend *backend = nullptr;

@@ -58,14 +58,18 @@ bool QPulseAudioBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMu
             this, &QPulseAudioBackend::activeDeviceChanged);
 
     m_thread->start();
+    m_active = true;
+    QPulseAudioThread::setAudioActive(true);
     return true;
 }
 
 void QPulseAudioBackend::stop()
 {
-    // Keep the thread alive — PulseAudio has similar re-init issues.
-    // The thread stays running but audio isn't consumed while another
-    // backend is active.
+    // Keep the thread alive — PulseAudio re-init within the same process
+    // is unreliable. Pause audio delivery so samples don't double-feed
+    // through addPCM when another backend becomes active.
+    m_active = false;
+    QPulseAudioThread::setAudioActive(false);
 }
 
 QString QPulseAudioBackend::backendName() const

@@ -30,6 +30,8 @@
 #include <QtDebug>
 #include <QMutex>
 
+#include <atomic>
+
 extern "C"
 {
 #include <pulse/introspect.h>
@@ -56,6 +58,11 @@ class QPulseAudioThread : public QThread
 			return s_sourceList;
 		}
 		void writeSettings();
+
+		// Pause/resume audio delivery without disconnecting the stream.
+		// Used by the unified backend to switch audio sources without
+		// destroying state.
+		static void setAudioActive(bool active);
 
 		inline const SourceContainer::const_iterator & sourcePosition() {
 			return s_sourcePosition;
@@ -105,6 +112,7 @@ class QPulseAudioThread : public QThread
 		static QMutex * s_audioMutex;
 		static SourceContainer s_sourceList;
 		static SourceContainer::const_iterator s_sourcePosition;
+		static std::atomic<bool> s_audioActive;
 		int argc;
 		char ** argv;
 		QProjectM_MainWindow * m_qprojectM_MainWindow;

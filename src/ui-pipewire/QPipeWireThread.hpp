@@ -29,6 +29,8 @@
 #include <QMutex>
 #include <QtDebug>
 
+#include <atomic>
+
 #include <pipewire/pipewire.h>
 #include <spa/param/audio/format-utils.h>
 
@@ -49,6 +51,11 @@ public:
     static void setAudioMutex(QMutex *mutex) { s_audioMutex = mutex; }
     void writeSettings();
     void readSettings();
+
+    // Pause/resume audio delivery without tearing down the PipeWire stream.
+    // Used by the unified backend to switch audio sources without re-initializing
+    // PipeWire (which is unsafe within a single process).
+    static void setAudioActive(bool active);
 
     // Device enumeration
     static const QHash<uint32_t, QString>& sourceList() { return s_sourceList; }
@@ -100,6 +107,7 @@ private:
     QProjectM_MainWindow *m_qprojectM_MainWindow;
     static QMutex *s_audioMutex;
     static AudioData s_data;
+    static std::atomic<bool> s_audioActive;
 
     static struct pw_context *s_context;
 

@@ -47,7 +47,10 @@ bool QJackBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)
     Q_UNUSED(audioMutex);
 
     if (m_client) {
-        return false; // already running
+        // Already running; reactivate (idempotent for backend caching).
+        m_mainWindow = mainWindow;
+        m_active = true;
+        return true;
     }
 
     m_mainWindow = mainWindow;
