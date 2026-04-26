@@ -24,7 +24,6 @@
 
 #include <QMutex>
 #include <QModelIndex>
-#include <QStandardItemModel>
 #include <QList>
 #include <algorithm>
 
@@ -134,13 +133,6 @@ void QPulseAudioBackend::selectDevice(const QString &deviceId)
         return;
     }
 
-    // QPulseAudioThread::connectDevice() uses index.row() as the key for
-    // s_sourceList.find(index.row()).  We need to produce a QModelIndex whose
-    // row() equals the PulseAudio source index (the int key in the hash).
-    //
-    // QModelIndex can only be created via a model.  We use a temporary
-    // QStandardItemModel with enough rows to cover the target key value, then
-    // pull out the index at the right row.
     int targetKey = deviceId.toInt();
     const QPulseAudioThread::SourceContainer &sources = m_thread->devices();
 
@@ -148,11 +140,7 @@ void QPulseAudioBackend::selectDevice(const QString &deviceId)
         return;
     }
 
-    // Create a temporary model large enough to produce a valid index at
-    // row == targetKey.
-    QStandardItemModel tmpModel(targetKey + 1, 1);
-    QModelIndex idx = tmpModel.index(targetKey, 0);
-    m_thread->connectDevice(idx);
+    m_thread->connectDeviceById(targetKey);
 }
 
 void QPulseAudioBackend::writeSettings()

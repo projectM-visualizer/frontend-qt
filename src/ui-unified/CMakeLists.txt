@@ -60,6 +60,7 @@ target_link_libraries(projectM-Qt-Unified
     ${UNIFIED_LINK_LIBS}
     ${PROJECTM_OPENGL_LIBRARIES}
     ${QT_LINK_TARGETS}
+    ${CMAKE_DL_LIBS}
 )
 
 set_target_properties(projectM-Qt-Unified PROPERTIES

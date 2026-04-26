@@ -204,13 +204,19 @@ QPulseAudioThread::SourceContainer::const_iterator QPulseAudioThread::scanForPla
 }
 
 void QPulseAudioThread::connectDevice ( const QModelIndex & index )
-{	
-	
+{
+
 	if (index.isValid())
 		reconnect(s_sourceList.find(index.row()));
 	else
 		reconnect(s_sourceList.end());
-	
+
+	emit(deviceChanged());
+}
+
+void QPulseAudioThread::connectDeviceById(int sourceId)
+{
+	reconnect(s_sourceList.find(sourceId));
 	emit(deviceChanged());
 }
 

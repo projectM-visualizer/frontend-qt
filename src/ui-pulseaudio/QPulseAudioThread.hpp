@@ -80,6 +80,11 @@ class QPulseAudioThread : public QThread
 
 		void connectDevice(const QModelIndex & index = QModelIndex());
 
+		// Connect by PulseAudio source index directly. Avoids the
+		// QStandardItemModel-just-to-make-an-index dance for callers that
+		// already know the source id.
+		void connectDeviceById(int sourceId);
+
 	signals:
 		void deviceChanged();
 		void threadCleanedUp();
