@@ -23,11 +23,13 @@
 #include "qprojectm_mainwindow.hpp"
 
 #include <QtDebug>
-#include <QThread>
-#include <QEventLoop>
-#include <QTimer>
+#include <chrono>
+#include <condition_variable>
 #include <cstdlib>
 #include <cstdio>
+#include <memory>
+#include <mutex>
+#include <thread>
 
 QJackBackend::QJackBackend(QObject *parent)
     : QAudioBackend(parent)
@@ -59,31 +61,65 @@ bool QJackBackend::start(QProjectM_MainWindow *mainWindow, QMutex *audioMutex)
     // Run in a worker thread with a timeout — jack_client_open can block
     // for several seconds even with JackNoStartServer if the server socket
     // exists but is unresponsive.
-    jack_client_t *result = nullptr;
-    jack_status_t status = JackFailure;
+    //
+    // The state is heap-allocated and shared with the worker so it outlives
+    // a timeout. On timeout we mark the call as abandoned and detach the
+    // thread; if the call eventually returns a valid client, the worker
+    // closes it itself. This avoids QThread::terminate (async, unsafe) and
+    // dangling references to stack variables.
+    struct OpenState {
+        std::mutex mutex;
+        std::condition_variable cv;
+        jack_client_t *client = nullptr;
+        jack_status_t status = JackFailure;
+        bool done = false;
+        bool abandoned = false;
+    };
 
-    QThread *worker = QThread::create([&result, &status]() {
-        result = jack_client_open("projectM", JackNoStartServer, &status, nullptr);
+    auto state = std::make_shared<OpenState>();
+
+    std::thread worker([state]() {
+        jack_status_t localStatus = JackFailure;
+        jack_client_t *result = jack_client_open("projectM", JackNoStartServer, &localStatus, nullptr);
+
+        bool shouldClose = false;
+        {
+            std::lock_guard<std::mutex> lock(state->mutex);
+            state->status = localStatus;
+            if (state->abandoned) {
+                shouldClose = (result != nullptr);
+            } else {
+                state->client = result;
+            }
+            state->done = true;
+        }
+        state->cv.notify_all();
+
+        // Caller gave up before we returned; clean up the orphan client.
+        if (shouldClose) {
+            jack_client_close(result);
+        }
     });
-    worker->start();
-    if (!worker->wait(3000)) { // 3 second timeout
-        qWarning() << "JACK connection timed out";
-        worker->terminate();
-        worker->wait(1000);
-        delete worker;
-        emit errorOccurred(QStringLiteral("JACK server connection timed out"));
-        return false;
-    }
-    delete worker;
+    worker.detach();
 
-    m_client = result;
-    if (!m_client) {
-        qCritical() << "jack_client_open() failed, status =" << status;
-        emit errorOccurred(QStringLiteral("Failed to connect to JACK server"));
-        return false;
+    {
+        std::unique_lock<std::mutex> lock(state->mutex);
+        if (!state->cv.wait_for(lock, std::chrono::seconds(3),
+                                [&]{ return state->done; })) {
+            state->abandoned = true;
+            qWarning() << "JACK connection timed out";
+            emit errorOccurred(QStringLiteral("JACK server connection timed out"));
+            return false;
+        }
+        m_client = state->client;
+        if (!m_client) {
+            qCritical() << "jack_client_open() failed, status =" << state->status;
+            emit errorOccurred(QStringLiteral("Failed to connect to JACK server"));
+            return false;
+        }
     }
 
-    if (status & JackNameNotUnique) {
+    if (state->status & JackNameNotUnique) {
         qDebug() << "JACK: unique name assigned:" << jack_get_client_name(m_client);
     }
 
