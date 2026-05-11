@@ -31,6 +31,12 @@ QHash<uint32_t, QString> QPipeWireThread::s_sourceList;
 QHash<uint32_t, bool> QPipeWireThread::s_isSinkMap;
 QString QPipeWireThread::s_currentDeviceName;
 uint32_t QPipeWireThread::s_currentNodeId = PW_ID_ANY;
+std::atomic<bool> QPipeWireThread::s_audioActive{true};
+
+void QPipeWireThread::setAudioActive(bool active)
+{
+    s_audioActive.store(active, std::memory_order_release);
+}
 
 QPipeWireThread::QPipeWireThread(int _argc, char **_argv, QProjectM_MainWindow *mainWindow)
     : QThread(nullptr), argc(_argc), argv(_argv), m_qprojectM_MainWindow(mainWindow)
@@ -82,6 +88,14 @@ void QPipeWireThread::on_process(void *userdata)
 
     struct spa_buffer *buf = b->buffer;
     if (buf->datas[0].data == nullptr) {
+        pw_stream_queue_buffer(data->stream, b);
+        return;
+    }
+
+    // Drop audio when this backend isn't the active one (e.g., user switched
+    // to another backend in the unified app). The stream stays connected
+    // because PipeWire can't be re-initialized within the same process.
+    if (!s_audioActive.load(std::memory_order_acquire)) {
         pw_stream_queue_buffer(data->stream, b);
         return;
     }
@@ -358,12 +372,25 @@ void QPipeWireThread::cleanup()
         s_data.loop = nullptr;
     }
 
-    pw_deinit();
+    // Do not call pw_deinit() here — PipeWire does not support
+    // re-initialization after deinit within the same process.
 }
+
+static bool s_pwInitialized = false;
 
 void QPipeWireThread::run()
 {
-    pw_init(&argc, &argv);
+    if (!s_pwInitialized) {
+        pw_init(&argc, &argv);
+        s_pwInitialized = true;
+    }
+
+    // Reset all static state for clean re-initialization
+    memset(&s_data, 0, sizeof(s_data));
+    s_sourceList.clear();
+    s_isSinkMap.clear();
+    s_currentNodeId = PW_ID_ANY;
+    s_currentDeviceName.clear();
 
     s_data.loop = pw_main_loop_new(nullptr);
     s_data.mainWindow = m_qprojectM_MainWindow;

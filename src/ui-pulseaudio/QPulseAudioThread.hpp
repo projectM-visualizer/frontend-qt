@@ -30,6 +30,8 @@
 #include <QtDebug>
 #include <QMutex>
 
+#include <atomic>
+
 extern "C"
 {
 #include <pulse/introspect.h>
@@ -57,6 +59,11 @@ class QPulseAudioThread : public QThread
 		}
 		void writeSettings();
 
+		// Pause/resume audio delivery without disconnecting the stream.
+		// Used by the unified backend to switch audio sources without
+		// destroying state.
+		static void setAudioActive(bool active);
+
 		inline const SourceContainer::const_iterator & sourcePosition() {
 			return s_sourcePosition;
 		}
@@ -72,6 +79,11 @@ class QPulseAudioThread : public QThread
 		void cleanup();
 
 		void connectDevice(const QModelIndex & index = QModelIndex());
+
+		// Connect by PulseAudio source index directly. Avoids the
+		// QStandardItemModel-just-to-make-an-index dance for callers that
+		// already know the source id.
+		void connectDeviceById(int sourceId);
 
 	signals:
 		void deviceChanged();
@@ -105,6 +117,7 @@ class QPulseAudioThread : public QThread
 		static QMutex * s_audioMutex;
 		static SourceContainer s_sourceList;
 		static SourceContainer::const_iterator s_sourcePosition;
+		static std::atomic<bool> s_audioActive;
 		int argc;
 		char ** argv;
 		QProjectM_MainWindow * m_qprojectM_MainWindow;

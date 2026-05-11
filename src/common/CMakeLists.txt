@@ -3,6 +3,13 @@ add_library(projectM-Qt-Common STATIC
         configfile.cpp
         configfile.hpp
         nullable.hpp
+        QAudioBackend.hpp
+        QAudioDeviceChooser.cpp
+        QAudioDeviceChooser.hpp
+        QAudioDeviceModel.cpp
+        QAudioDeviceModel.hpp
+        configutil.cpp
+        configutil.hpp
         qplaylistfiledialog.cpp
         qplaylistfiledialog.hpp
         qplaylistmodel.cpp

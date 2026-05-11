@@ -12,6 +12,9 @@ if(ENABLE_JACK)
     add_subdirectory(ui-jack)
 endif()
 
-if(NOT ENABLE_PULSEAUDIO AND NOT ENABLE_PIPEWIRE AND NOT ENABLE_JACK)
+# Unified executable with runtime backend selection
+if(ENABLE_PULSEAUDIO OR ENABLE_PIPEWIRE OR ENABLE_JACK)
+    add_subdirectory(ui-unified)
+else()
     message(FATAL_ERROR "At least one audio backend must be enabled (ENABLE_PULSEAUDIO, ENABLE_PIPEWIRE, or ENABLE_JACK).")
 endif()

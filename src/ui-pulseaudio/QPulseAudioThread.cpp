@@ -60,7 +60,13 @@
 
 QPulseAudioThread::SourceContainer QPulseAudioThread::s_sourceList;
 QPulseAudioThread::SourceContainer::const_iterator QPulseAudioThread::s_sourcePosition;
- 
+std::atomic<bool> QPulseAudioThread::s_audioActive{true};
+
+void QPulseAudioThread::setAudioActive(bool active)
+{
+    s_audioActive.store(active, std::memory_order_release);
+}
+
 QProjectM_MainWindow ** QPulseAudioThread::s_qprojectM_MainWindowPtr = 0;
  
 QPulseAudioThread::QPulseAudioThread ( int _argc, char **_argv, QProjectM_MainWindow * mainWindow ) : QThread ( 0 ), argc ( _argc ), argv ( _argv ),  m_qprojectM_MainWindow (mainWindow)
@@ -103,9 +109,21 @@ QPulseAudioThread::SourceContainer::const_iterator QPulseAudioThread::readSettin
 	return s_sourceList.end();
 }
 
+void QPulseAudioThread::writeSettings()
+{
+	QSettings settings("projectM", "qprojectM-pulseaudio");
+
+	if (s_sourcePosition != s_sourceList.end()) {
+		settings.setValue("tryFirstAvailablePlaybackMonitor", false);
+		settings.setValue("pulseAudioDeviceName", *s_sourcePosition);
+	} else {
+		settings.setValue("tryFirstAvailablePlaybackMonitor", true);
+	}
+}
+
 void QPulseAudioThread::cleanup()
 {
-	
+
 	pa_threaded_mainloop_stop ( mainloop );
 
 	if ( stream )
@@ -186,13 +204,19 @@ QPulseAudioThread::SourceContainer::const_iterator QPulseAudioThread::scanForPla
 }
 
 void QPulseAudioThread::connectDevice ( const QModelIndex & index )
-{	
-	
+{
+
 	if (index.isValid())
 		reconnect(s_sourceList.find(index.row()));
 	else
 		reconnect(s_sourceList.end());
-	
+
+	emit(deviceChanged());
+}
+
+void QPulseAudioThread::connectDeviceById(int sourceId)
+{
+	reconnect(s_sourceList.find(sourceId));
 	emit(deviceChanged());
 }
 
@@ -337,11 +361,14 @@ void QPulseAudioThread::stream_read_callback ( pa_stream *s, size_t length, void
 		return;
 	}
 
-	(*s_qprojectM_MainWindowPtr)->addPCM( (float*)data, length / ( sizeof ( float ) ) );
-	
-	
-	//buffer = ( float* ) pa_xmalloc ( buffer_length = length );
-	//memcpy ( buffer, data, length );
+	// Drop audio when this backend isn't the active one (e.g., user switched
+	// to another backend in the unified app). Stream stays connected because
+	// PulseAudio re-init within the same process is unreliable.
+	if (s_audioActive.load(std::memory_order_acquire))
+	{
+		(*s_qprojectM_MainWindowPtr)->addPCM( (float*)data, length / ( sizeof ( float ) ) );
+	}
+
 	buffer_index = 0;
 	pa_stream_drop ( s );
 }
