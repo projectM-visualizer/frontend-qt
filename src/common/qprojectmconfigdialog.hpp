@@ -31,10 +31,11 @@ class QProjectMConfigDialog : public QDialog {
 		QProjectMConfigDialog(const QString& configFile, QProjectMWidget * widget, QWidget * parent = 0, Qt::WindowFlags f = Qt::WindowFlags());
 	private:
 		void loadConfig();
+		void applyLiveSettings();
 	private slots:
-		void openPlaylistFileDialog();		
+		void openPlaylistFileDialog();
 		void openPlaylistDirectoryDialog();
-	
+
 		void openMenuFontFileDialog();
 		void openTitleFontFileDialog();
 		void saveConfig();

@@ -21,10 +21,12 @@
 #include "qprojectmconfigdialog.hpp"
 #include <QtDebug>
 #include <QAction>
+#include <QMutexLocker>
 #include "qplaylistfiledialog.hpp"
 #include <QSettings>
 #include "qprojectmwidget.hpp"
 #include "configfile.hpp"
+#include <projectM-4/parameters.h>
 
 QProjectMConfigDialog::QProjectMConfigDialog(const QString& configFile, QProjectMWidget * qprojectMWidget, QWidget * parent, Qt::WindowFlags f) : QDialog(parent, f), _settings("projectM", "qprojectM"), _configFile(configFile), _qprojectMWidget(qprojectMWidget) {
 
@@ -53,9 +55,7 @@ void QProjectMConfigDialog::buttonBoxHandler(QAbstractButton * button) {
 			break;
 		case QDialogButtonBox::Save:
 			saveConfig();
-#ifdef PROJECTM_RESET_IS_THREAD_SAFE
-			emit(projectM_Reset());
-#endif
+			applyLiveSettings();
 			break;
 		case QDialogButtonBox::Reset:
 			loadConfig();
@@ -155,6 +155,45 @@ void QProjectMConfigDialog::saveConfig() {
 	qSettings.setValue("MenuOnStartup", _ui.menuOnStartupCheckBox->checkState() == Qt::Checked);
 	qSettings.setValue("PlaylistFile", _ui.startupPlaylistFileLineEdit->text());
 	qSettings.setValue("MouseHideOnTimeout", _ui.mouseHideTimeoutSpinBox->value());
+}
+
+void QProjectMConfigDialog::applyLiveSettings() {
+	// Push setting changes to the running projectM instance so they take
+	// effect without an app restart. Only values that can be safely changed
+	// at runtime via the public C API are applied here. Values that need
+	// GL context recreation (texture size) or playlist reload (preset path,
+	// shuffle) still require a restart.
+	if (!_qprojectMWidget || !_qprojectMWidget->qprojectM()) {
+		return;
+	}
+	auto *pm = _qprojectMWidget->qprojectM()->instance();
+	if (!pm) {
+		return;
+	}
+
+	// Resize the top-level window first. Qt's resize event flows down to
+	// QProjectMWidget::resizeGL which already handles devicePixelRatio
+	// scaling and queues projectm_set_window_size on the render thread.
+	// Doing this directly would skip DPR scaling and desync projectM's
+	// internal size from the actual widget framebuffer.
+	if (auto *topWindow = _qprojectMWidget->window()) {
+		topWindow->resize(_ui.windowWidthSpinBox->value(),
+		                  _ui.windowHeightSpinBox->value());
+	}
+
+	// All other projectM API calls share the render thread's mutex to
+	// avoid races with paintGL. The mutex is recursive-safe via QMutex.
+	QMutexLocker projectMLock(_qprojectMWidget->projectMMutex());
+
+	projectm_set_fps(pm, _ui.maxFPSSpinBox->value());
+	projectm_set_aspect_correction(pm, _ui.useAspectCorrectionCheckBox->checkState() == Qt::Checked);
+	projectm_set_beat_sensitivity(pm, static_cast<float>(_ui.beatSensitivitySpinBox->value()));
+	projectm_set_soft_cut_duration(pm, _ui.smoothPresetDurationSpinBox->value());
+	projectm_set_preset_duration(pm, _ui.presetDurationSpinBox->value());
+	projectm_set_easter_egg(pm, static_cast<float>(_ui.easterEggParameterSpinBox->value()));
+	projectm_set_mesh_size(pm,
+	                       static_cast<size_t>(_ui.meshSizeWidthSpinBox->value()),
+	                       static_cast<size_t>(_ui.meshSizeHeightSpinBox->value()));
 }
 
 
